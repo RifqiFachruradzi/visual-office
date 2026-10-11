@@ -1,3 +1,3 @@
-// Vercel Function: pengaturan bot Telegram, antrean perintah & kirim laporan (wajib login)
-import { handleTelegram } from '../lib/telegram.js';
-export default handleTelegram;
+// Vercel Function: bot Telegram — webhook (header secret token) + API aplikasi (wajib login)
+import { handleTelegramAll } from '../lib/telegram.js';
+export default handleTelegramAll;

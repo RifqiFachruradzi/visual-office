@@ -238,4 +238,4 @@ Cara pakai di Telegram:
 - **Kantor sedang dibuka** (tab terlihat): perintah masuk antrean, dikerjakan seluruh hierarki (briefing, kerja, laporan, Gudang Dokumen) dengan animasi, lalu laporan dikirim ke Telegram.
 - **Kantor tidak dibuka**: perintah langsung dikerjakan AI di server atas nama divisi/karyawan tujuan, laporan disimpan ke Gudang Dokumen dan dikirim ke Telegram; saat kantor dibuka, tugasnya muncul di daftar Tugas.
 - Keamanan: webhook diverifikasi dengan secret token; hanya chat yang sudah ditautkan (kode sekali pakai, 15 menit) yang bisa memberi perintah.
-- Endpoint: `POST /api/telegram-hook` (dari Telegram), `GET/POST /api/telegram` (aplikasi, wajib login). Butuh database Upstash.
+- Endpoint: `/api/telegram` — dari Telegram (dikenali lewat header secret token) dan dari aplikasi (wajib login). Satu endpoint saja karena paket Hobby Vercel membatasi jumlah function. Butuh database Upstash.
