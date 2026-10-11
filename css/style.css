@@ -324,3 +324,11 @@ body.studio button:focus-visible, body.studio input:focus-visible, body.studio s
   body.studio .roomtabs .rt, body.studio .zoomctl button { min-height: 44px; }
 }
 
+
+/* dialog Telegram */
+.tg-steps { padding-left: 18px; line-height: 1.6; }
+.tg-steps li { margin-bottom: 6px; }
+#dlgBody .ok { color: #2e7d32; }
+#dlgBody .warn { color: #c62828; }
+#dlgBody .muted { color: var(--muted, #6b7280); font-size: 12px; }
+#dlgBody code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; }

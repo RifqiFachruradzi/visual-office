@@ -217,3 +217,25 @@ Visual Office bisa memakai [9router](https://github.com/decolua/9router) atau ro
 
 Bila 9router diisi, **semua agen** memakai 9router (pil AI di bar atas menampilkan "9router"). Model khusus per agen:
 pilih model `9router` di form agen, atau tulis model `9router:<nama-model>` lewat Export/Import JSON.
+
+## Perintah lewat Telegram
+
+Boss bisa memberi perintah dari bot Telegram; laporan akhirnya dikirim balik ke chat.
+
+1. Buat bot baru di **@BotFather** (`/newbot`) dan salin tokennya. Pakai bot khusus Visual Office: satu bot tidak bisa dipakai Hermes dan Visual Office bersamaan.
+2. Vercel → *Settings → Environment Variables* → `TELEGRAM_BOT_TOKEN` = token bot (opsional `TELEGRAM_WEBHOOK_SECRET`), lalu **Redeploy**.
+3. Buka Visual Office → tombol **Telegram** (ikon pesawat kertas) → **Pasang webhook** → **Hubungkan chat Telegram** → klik tautan `t.me/<bot>?start=KODE` (atau kirim `/link KODE` ke bot).
+
+Cara pakai di Telegram:
+
+| Pesan | Hasil |
+|---|---|
+| `Buat rencana promosi bulan depan` | dikerjakan seluruh kantor |
+| `@Finance buat ringkasan arus kas` | dikerjakan divisi / departemen / karyawan bernama Finance |
+| `/status` | 5 tugas terakhir |
+| `/help`, `/unlink` | bantuan, putuskan chat |
+
+- **Kantor sedang dibuka** (tab terlihat): perintah masuk antrean, dikerjakan seluruh hierarki (briefing, kerja, laporan, Gudang Dokumen) dengan animasi, lalu laporan dikirim ke Telegram.
+- **Kantor tidak dibuka**: perintah langsung dikerjakan AI di server atas nama divisi/karyawan tujuan, laporan disimpan ke Gudang Dokumen dan dikirim ke Telegram; saat kantor dibuka, tugasnya muncul di daftar Tugas.
+- Keamanan: webhook diverifikasi dengan secret token; hanya chat yang sudah ditautkan (kode sekali pakai, 15 menit) yang bisa memberi perintah.
+- Endpoint: `POST /api/telegram-hook` (dari Telegram), `GET/POST /api/telegram` (aplikasi, wajib login). Butuh database Upstash.
