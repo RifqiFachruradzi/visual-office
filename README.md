@@ -232,6 +232,8 @@ Cara pakai di Telegram:
 |---|---|
 | `Buat rencana promosi bulan depan` | dikerjakan seluruh kantor |
 | `@Finance buat ringkasan arus kas` | dikerjakan divisi / departemen / karyawan bernama Finance |
+| `@Hadi Prime cek progres sprint` atau `@HadiPrime …` | dikerjakan satu karyawan saja (nama depan saja cukup bila tidak ada yang kembar; bila kembar, bot menanyakan yang dimaksud) |
+| `/tim` | daftar divisi & karyawan beserta nama `@` untuk disalin |
 | `/status` | 5 tugas terakhir |
 | `/help`, `/unlink` | bantuan, putuskan chat |
 
