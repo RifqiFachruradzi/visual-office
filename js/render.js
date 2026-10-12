@@ -2337,7 +2337,7 @@
     updateGeo(s);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    if (studio()) { g.addColorStop(0, '#e9f0ed'); g.addColorStop(1, '#cddcd7'); }
+    if (studio()) { g.addColorStop(0, '#1b2328'); g.addColorStop(1, '#0f1417'); } // latar gelap
     else if (robot()) { g.addColorStop(0, '#f3f4fa'); g.addColorStop(1, '#e3e6f2'); }
     else if (modern()) { g.addColorStop(0, '#f6f8fb'); g.addColorStop(1, '#e4e9f1'); }
     else if (classic()) { g.addColorStop(0, '#f4f4fb'); g.addColorStop(1, '#e2e3f2'); }

@@ -502,8 +502,9 @@ S3.init = async function (canvas2d) {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(0x000000, 0);
     scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xa7b0ba, 1.75));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.9);
+    // sedikit diredupkan agar tidak silau di atas latar mode gelap
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8f99a3, 1.4));
+    const sun = new THREE.DirectionalLight(0xfff6ea, 1.6);
     sun.position.set(-0.35, 1, 0.55); scene.add(sun);
     camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 1000);
     S3.mat = new THREE.MeshLambertMaterial({ vertexColors: true });

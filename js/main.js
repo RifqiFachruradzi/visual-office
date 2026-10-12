@@ -281,7 +281,8 @@
   // Satu tampilan saja: Studio (kantor 2 lantai). Pilihan tema lain sudah dihapus.
   function applyTheme() {
     const t = app.state.settings.theme || 'studio';
-    document.body.classList.toggle('light', t !== 'pixel' && t !== 'luxe');
+    document.body.classList.remove('light'); // mode gelap untuk semua (lebih nyaman di mata)
+    document.body.classList.add('dark');
     document.body.classList.toggle('luxe', t === 'luxe');
     document.body.classList.toggle('studio', t === 'studio');
     // (tidak ada tombol tema)

@@ -332,3 +332,25 @@ body.studio button:focus-visible, body.studio input:focus-visible, body.studio s
 #dlgBody .warn { color: #c62828; }
 #dlgBody .muted { color: var(--muted, #6b7280); font-size: 12px; }
 #dlgBody code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; }
+
+/* Mode gelap (default): palet hijau-gelap selaras aksen Studio, kontras lembut agar nyaman di mata */
+body.studio.dark {
+  --bg: #0f1417; --panel: #151b1f; --panel-2: #1c2429; --line: #283238;
+  --text: #dfe7e3; --muted: #8a9a93; --accent: #6cc9a1; --primary: #2e8a68; --ok: #6fcf8e;
+  --input: #11171a; --hover: #3b4a51; --hover-bg: #212a2f; --sel-bg: #1f3129;
+  --card: #182025; --float: rgba(21,27,31,.95); --hint-bg: rgba(15,20,23,.85); --soft: #b5c4bd; --dash: #34424a;
+}
+body.studio.dark .card { background: var(--card); box-shadow: 0 3px 12px rgba(0,0,0,.25); }
+body.studio.dark .topbar { box-shadow: 0 2px 14px rgba(0,0,0,.3); }
+body.studio.dark .roomtabs, body.studio.dark .zoomctl { border-color: var(--line); box-shadow: 0 6px 22px rgba(0,0,0,.35); }
+body.studio.dark .roomtabs .rt.on { background: var(--primary); }
+body.studio.dark .hint { border-color: var(--line); }
+body.studio.dark .node.sel { outline-color: #2e6b55; }
+body.studio.dark .node .ni.director { color: #9aa3c9; }
+body.studio.dark button:focus-visible, body.studio.dark input:focus-visible, body.studio.dark select:focus-visible { outline-color: var(--accent); }
+body.studio.dark .pill.on { color: var(--ok); border-color: #2e5e43; }
+body.studio.dark dialog::backdrop { background: rgba(0,0,0,.55); }
+body.studio.dark #dlgBody .ok { color: var(--ok); }
+body.studio.dark #dlgBody .warn { color: #ef7d7a; }
+body.studio.dark #dlgBody code { background: rgba(255,255,255,.08); }
+body.studio.dark canvas.office3d { background: radial-gradient(ellipse at 50% 40%, #1e272c 0%, #11171a 70%); }
