@@ -229,11 +229,54 @@
     p.innerHTML = VO.ai.available
       ? VO.icon('sparkles') + ' ' + VO.ai.label() + (s.settings.aiMode ? ' aktif' : ' siap')
       : VO.icon('dice') + ' Simulasi';
-    p.title = VO.ai.reason;
+    p.title = VO.ai.reason + ' — klik untuk memilih sumber AI';
     p.classList.toggle('on', VO.ai.available && s.settings.aiMode);
     $('aiMode').disabled = !VO.ai.available;
     $('aiMode').parentElement.title = VO.ai.available ? 'Agen mengerjakan tugas dengan AI sungguhan (' + VO.ai.reason + ')' : VO.ai.reason;
   }
+
+  VO.ai.onChange = () => aiPill();
+
+  // Pilih sumber AI: 9router di komputer ini (gratis, saat di rumah) atau Gemini lewat server (saat di luar)
+  async function aiSourceDialog() {
+    const ai = VO.ai;
+    const v = ui().form('Sumber AI', [
+      { key: 'mode', label: 'Pakai AI dari', type: 'select', value: ai.src.mode, options: [
+        { value: 'auto', label: 'Otomatis — 9router lokal bila terdeteksi, selain itu Gemini (disarankan)' },
+        { value: 'local', label: 'Selalu 9router lokal (komputer ini)' },
+        { value: 'server', label: 'Selalu Gemini (server)' },
+      ] },
+      { key: 'url', label: 'Alamat 9router lokal', value: ai.src.url, placeholder: 'http://localhost:20128/v1' },
+      { key: 'key', label: 'API key 9router (kosongkan bila tidak diwajibkan)', value: ai.src.key },
+      { key: 'model', label: 'Model / combo 9router (kosongkan = pertama di daftar)', value: ai.src.model, placeholder: 'mis. combo-gratis' },
+    ], 'Simpan');
+    // tombol tes + daftar model dari 9router
+    const body = $('dlgBody');
+    const info = document.createElement('div');
+    info.className = 'field';
+    info.innerHTML = '<button type="button" class="small" id="aiTest">Tes koneksi 9router</button> <span id="aiTestOut" class="muted"></span><datalist id="aiModels"></datalist>' +
+      '<p class="muted" style="margin-top:8px">9router dipanggil langsung dari browser ini, jadi hanya bekerja di komputer tempat 9router berjalan. Bila Chrome menanyakan izin <b>akses jaringan lokal</b>, pilih <b>Izinkan</b>. Pengaturan ini tersimpan per perangkat. Perintah dari Telegram saat kantor tidak dibuka tetap memakai Gemini (server).</p>';
+    body.appendChild(info);
+    $('f_model').setAttribute('list', 'aiModels');
+    const fill = () => { $('aiModels').innerHTML = ai.local.models.map((m) => `<option value="${VO.esc(m)}">`).join(''); };
+    fill();
+    $('aiTest').onclick = async () => {
+      const keep = { ...ai.src };
+      ai.src.url = $('f_url').value.trim(); ai.src.key = $('f_key').value.trim(); ai.src.mode = 'auto';
+      $('aiTestOut').textContent = 'Mengecek…';
+      const ok = await ai.probeLocal();
+      Object.assign(ai.src, { mode: keep.mode });
+      $('aiTestOut').textContent = ok ? `✓ Terhubung — ${ai.local.models.length} model tersedia` : '✗ ' + ai.local.error;
+      fill();
+    };
+    const r = await v;
+    if (!r) { ai.probeLocal(); return; }
+    ai.saveSource({ mode: r.mode, url: r.url || 'http://localhost:20128/v1', key: r.key, model: r.model });
+    await ai.probeLocal();
+    aiPill();
+    VO.ui.toast('Sumber AI: ' + (ai.usingLocal() ? '9router lokal' : ai.serverAvailable ? 'Gemini (server)' : 'tidak tersedia'), 'sparkles');
+  }
+  const ui = () => VO.ui;
 
   // Satu tampilan saja: Studio (kantor 2 lantai). Pilihan tema lain sudah dihapus.
   function applyTheme() {
@@ -315,6 +358,7 @@
     $('modeView').onclick = () => setMode(false);
     $('modeEdit').onclick = () => setMode(true);
     $('ambient').onchange = (e) => { s().settings.ambient = e.target.checked; app.changed(); };
+    $('aiStatus').onclick = () => aiSourceDialog();
     $('aiMode').onchange = (e) => {
       s().settings.aiMode = e.target.checked;
       s().settings.aiModeTouched = true;

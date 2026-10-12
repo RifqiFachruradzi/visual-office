@@ -6,6 +6,10 @@
  * Panggilan AI diantrekan agar tidak melewati rate limit free tier Gemini,
  * dan otomatis dicoba ulang bila kena 429.
  * Jika halaman dibuka dari file:// semuanya non-aktif → mode simulasi.
+ *
+ * Sumber AI (disimpan per perangkat): 'auto' = pakai 9router di komputer ini bila
+ * terjangkau (mis. http://localhost:20128/v1, dipanggil langsung dari browser),
+ * selain itu AI server (Gemini) · 'local' = selalu 9router lokal · 'server' = selalu Gemini.
  * ========================================================================= */
 (function () {
   const VO = window.VO;
@@ -14,6 +18,51 @@
   const isHttp = () => location.protocol === 'http:' || location.protocol === 'https:';
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  /* ------------------------------------------------------------ sumber AI: 9router lokal / server */
+  const SRC_KEY = 'vo:aiSource';
+  const loadSrc = () => { try { return JSON.parse(localStorage.getItem(SRC_KEY) || '{}'); } catch (e) { return {}; } };
+  ai.src = Object.assign({ mode: 'auto', url: 'http://localhost:20128/v1', key: '', model: '' }, loadSrc());
+  ai.local = { ok: false, checked: 0, error: '', models: [] };
+  ai.serverAvailable = false;
+  ai.onChange = null; // dipasang main.js untuk memperbarui label status AI
+  ai.saveSource = function (o) {
+    Object.assign(ai.src, o);
+    try { localStorage.setItem(SRC_KEY, JSON.stringify(ai.src)); } catch (e) { /* mode privat */ }
+  };
+  const localBase = () => String(ai.src.url || '').trim().replace(/\/+$/, '');
+  const localHeaders = () => ({ 'content-type': 'application/json', ...(ai.src.key ? { authorization: 'Bearer ' + ai.src.key } : {}) });
+  ai.usingLocal = () => ai.src.mode === 'local' || (ai.src.mode === 'auto' && ai.local.ok);
+  let lastState = '';
+  function refresh() {
+    ai.available = ai.serverAvailable || ai.usingLocal();
+    ai.reason = ai.usingLocal()
+      ? `9router lokal (${localBase()})` + (ai.local.ok ? '' : ' — belum terjangkau: ' + (ai.local.error || '?'))
+      : ai.serverReason + (ai.src.mode === 'auto' && ai.local.checked ? ' · 9router lokal tidak terdeteksi' : '');
+    const now = ai.available + '|' + ai.usingLocal();
+    if (now !== lastState) { lastState = now; if (ai.onChange) ai.onChange(); }
+    return ai;
+  }
+  ai.refresh = refresh;
+
+  /** Cek 9router di komputer ini (GET /models, maks. 2,5 dtk). */
+  ai.probeLocal = async function () {
+    if (ai.src.mode === 'server' || !localBase()) { ai.local.ok = false; refresh(); return false; }
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 2500);
+    try {
+      const r = await fetch(localBase() + '/models', { headers: localHeaders(), signal: ac.signal, cache: 'no-store' });
+      ai.local.ok = r.ok;
+      ai.local.error = r.ok ? '' : 'HTTP ' + r.status + (r.status === 401 ? ' (API key 9router salah / belum diisi)' : '');
+      if (r.ok) { const j = await r.json().catch(() => null); ai.local.models = ((j && j.data) || []).map((m) => m.id).filter(Boolean); }
+    } catch (e) {
+      ai.local.ok = false;
+      ai.local.error = 'tidak terjangkau (9router belum jalan, atau browser memblokir akses jaringan lokal)';
+    } finally { clearTimeout(t); }
+    ai.local.checked = Date.now();
+    refresh();
+    return ai.local.ok;
+  };
+
   ai.check = async function () {
     if (!isHttp()) { ai.reason = 'Dibuka dari file:// — jalankan `npm start` atau deploy ke Vercel untuk mode AI'; return ai; }
     try {
@@ -21,16 +70,21 @@
       if (r.status === 401) { location.href = '/login.html'; return ai; }
       const j = await r.json();
       ai.server = true;
-      ai.available = !!j.ai;
+      ai.serverAvailable = !!j.ai;
       ai.live = !!j.live;
       ai.providers = j.providers || [];
       ai.defaultModel = j.defaultModel;
-      ai.reason = j.reason || (j.ai ? 'AI siap' : 'API key belum diset');
+      ai.serverReason = j.reason || (j.ai ? 'AI siap' : 'API key belum diset');
     } catch (e) {
-      ai.reason = 'Backend tidak terjangkau (mode simulasi)';
+      ai.serverReason = 'Backend tidak terjangkau (mode simulasi)';
     }
-    return ai;
+    await ai.probeLocal();
+    return refresh();
   };
+  // mode Otomatis: cek ulang 9router lokal berkala & saat kembali online / membuka tab
+  setInterval(() => { if (ai.src.mode === 'auto' && document.visibilityState === 'visible') ai.probeLocal(); }, 30000);
+  window.addEventListener('online', () => ai.probeLocal());
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ai.src.mode === 'auto') ai.probeLocal(); });
 
   // Siapa yang login (Boss). null bila login tidak aktif / dibuka dari file://
   ai.me = async function () {
@@ -43,7 +97,7 @@
     } catch (e) { return null; }
   };
 
-  ai.label = () => ({ '9router': '9router', gemini: 'Gemini', claude: 'Claude' })[ai.providers[0]] || 'AI';
+  ai.label = () => (ai.usingLocal() ? '9router lokal' : ({ '9router': '9router', gemini: 'Gemini', claude: 'Claude' })[ai.providers[0]] || 'AI');
 
   ai.systemPrompt = function (s, ent, long) {
     const dept = s.departments.find((d) => d.id === ent.deptId);
@@ -70,7 +124,62 @@
   };
 
   /* ------------------------------------------------------------ satu panggilan */
-  async function runOnce({ model, system, prompt, long }, onText) {
+  // SSE OpenAI-compatible: baris `data: {choices:[{delta:{content}}]}` diakhiri `data: [DONE]`
+  async function runLocal({ system, prompt, long }, onText) {
+    const model = ai.src.model || ai.local.models[0] || '';
+    const messages = [];
+    if (system) messages.push({ role: 'system', content: system });
+    messages.push({ role: 'user', content: prompt });
+    let r;
+    try {
+      r = await fetch(localBase() + '/chat/completions', {
+        method: 'POST', headers: localHeaders(),
+        body: JSON.stringify({ model: model || undefined, messages, stream: true, max_tokens: long ? 8192 : 2048 }),
+      });
+    } catch (e) { throw Object.assign(new Error('9router lokal tidak terjangkau'), { network: true }); }
+    if (!r.ok || !r.body) {
+      const j = await r.json().catch(() => ({}));
+      throw Object.assign(new Error('9router lokal: ' + ((j.error && (j.error.message || j.error)) || 'HTTP ' + r.status)), { status: r.status });
+    }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', full = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') return full;
+        let j;
+        try { j = JSON.parse(data); } catch (e) { continue; }
+        if (j.error) throw Object.assign(new Error('9router lokal: ' + (j.error.message || j.error)), { status: j.error.code || 502 });
+        const c = j.choices && j.choices[0];
+        const t = c && ((c.delta && c.delta.content) || (c.message && c.message.content));
+        if (t) { full += t; onText && onText(t, full); }
+      }
+    }
+    return full;
+  }
+
+  async function runOnce(params, onText) {
+    if (ai.usingLocal()) {
+      let sent = false;
+      try { return await runLocal(params, (t, f) => { sent = true; onText && onText(t, f); }); }
+      catch (e) {
+        // mode Otomatis & 9router mendadak mati (mis. laptop dibawa keluar) → pakai AI server
+        if (!e.network || sent || ai.src.mode !== 'auto' || !ai.serverAvailable) throw e;
+        ai.local.ok = false; ai.local.error = 'terputus'; refresh();
+      }
+    }
+    return runServer(params, onText);
+  }
+
+  async function runServer({ model, system, prompt, long }, onText) {
     const r = await fetch('/api/run', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
