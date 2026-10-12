@@ -24,12 +24,19 @@
     if (!r.ok) throw new Error('Gagal memuat data cloud (HTTP ' + r.status + ')');
     const j = await r.json();
     cloud.synced = new Set((j.docs || []).map((d) => d.id));
+    cloud.rev = j.rev || 0; // versi kantor di server (naik bila diubah lewat Telegram)
     return j;
   };
 
   async function post(body) {
     const r = await fetch('/api/office', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     if (r.status === 401) { location.href = '/login.html'; throw new Error('Sesi habis'); }
+    if (r.status === 409) { // kantor diubah server sejak halaman dimuat → muat ulang agar tidak menimpa
+      cloud.enabled = false;
+      VO.ui && VO.ui.toast('Kantor diubah dari Telegram — memuat ulang…', 'send');
+      setTimeout(() => location.reload(), 1200);
+      throw new Error('Kantor diubah dari tempat lain');
+    }
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
   }
@@ -45,7 +52,7 @@
       for (const d of s.docs) if (!cloud.synced.has(d.id)) ops.push({ op: 'put', doc: d });
       for (const id of cloud.synced) if (!ids.has(id)) ops.push({ op: 'del', id });
       // kirim kantor dulu, lalu dokumen per 40 agar request tidak terlalu besar
-      await post({ office: officePayload(s), docOps: ops.slice(0, 40) });
+      await post({ office: officePayload(s), rev: cloud.rev || 0, docOps: ops.slice(0, 40) });
       for (let i = 40; i < ops.length; i += 40) await post({ docOps: ops.slice(i, i + 40) });
       for (const op of ops) op.op === 'put' ? cloud.synced.add(op.doc.id) : cloud.synced.delete(op.id);
       cloud.lastError = '';

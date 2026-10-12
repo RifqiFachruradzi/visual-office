@@ -460,6 +460,69 @@
     }
   };
 
+  /* ---------------------------------------------------------------- perubahan struktur (Telegram) */
+  // Dipakai di browser DAN di server (lib/officeops.js memuat file ini) agar hasilnya identik.
+  const normName = (x) => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  /** Cari berdasarkan nama: persis (tanpa spasi/tanda baca) lalu awalan unik. → {hit} | {many} | {} */
+  VO.findByName = function (list, key) {
+    const k = normName(key);
+    if (!k) return {};
+    const exact = list.filter((x) => normName(x.name) === k);
+    if (exact.length === 1) return { hit: exact[0] };
+    const part = exact.length ? exact : list.filter((x) => normName(x.name).startsWith(k));
+    return part.length === 1 ? { hit: part[0] } : part.length ? { many: part } : {};
+  };
+  const addDeptWithTeam = (s, div, name, staff) => {
+    const dept = VO.addDepartment(s, div.id, { name });
+    VO.addAgent(s, dept.id, { role: 'Team Lead', isLead: true });
+    for (let i = 0; i < staff; i++) VO.addAgent(s, dept.id, { role: 'Staff' });
+    return dept;
+  };
+  const pickErr = (r, what, key) => (r.many ? `Ada beberapa ${what} yang cocok dengan "${key}": ${r.many.map((x) => x.name).join(', ')}. Tulis lebih lengkap.` : `${what[0].toUpperCase() + what.slice(1)} "${key}" tidak ditemukan.`);
+  /**
+   * Terapkan satu perubahan struktur. op:
+   *   { type:'division', name, depts:[nama…], staff }   divisi baru (+ direktur, + departemen opsional)
+   *   { type:'dept', division, name, staff }           departemen baru di divisi (ketua + staf)
+   *   { type:'agent', dept, role, name? }              rekrut karyawan ke departemen
+   * → { ok, text }  (s diubah & ditata ulang bila ok)
+   */
+  VO.applyOp = function (s, op) {
+    const staff = Math.max(0, Math.min(20, parseInt(op.staff, 10) >= 0 ? parseInt(op.staff, 10) : 2));
+    if (op.type === 'division') {
+      const name = String(op.name || '').trim().slice(0, 60);
+      if (!name) return { ok: false, text: 'Nama divisi kosong.' };
+      if (s.divisions.some((d) => normName(d.name) === normName(name))) return { ok: false, text: `Divisi "${name}" sudah ada.` };
+      const div = VO.addDivision(s, { name, directorRole: 'Direktur ' + name });
+      const depts = (op.depts || []).map((x) => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 8);
+      for (const dn of depts) addDeptWithTeam(s, div, dn, staff);
+      VO.autoLayout(s);
+      VO.log(s, `Divisi baru dari Telegram: ${name}${depts.length ? ' (' + depts.join(', ') + ')' : ''}`, 'layers');
+      const n = s.agents.filter((a) => a.divisionId === div.id).length;
+      return { ok: true, text: `Divisi **${name}** dibuat dengan direktur${depts.length ? ` dan ${depts.length} departemen (${depts.join(', ')})` : ''} — ${n} karyawan.` };
+    }
+    if (op.type === 'dept') {
+      const r = VO.findByName(s.divisions, op.division);
+      if (!r.hit) return { ok: false, text: pickErr(r, 'divisi', op.division) };
+      const name = String(op.name || '').trim().slice(0, 60);
+      if (!name) return { ok: false, text: 'Nama departemen kosong.' };
+      if (s.departments.some((d) => d.divisionId === r.hit.id && normName(d.name) === normName(name))) return { ok: false, text: `Departemen "${name}" sudah ada di divisi ${r.hit.name}.` };
+      addDeptWithTeam(s, r.hit, name, staff);
+      VO.autoLayout(s);
+      VO.log(s, `Departemen baru dari Telegram: ${name} (divisi ${r.hit.name})`, 'building');
+      return { ok: true, text: `Departemen **${name}** dibuat di divisi ${r.hit.name} — 1 ketua tim + ${staff} staf.` };
+    }
+    if (op.type === 'agent') {
+      const r = VO.findByName(s.departments, op.dept);
+      if (!r.hit) return { ok: false, text: pickErr(r, 'departemen', op.dept) };
+      const role = String(op.role || 'Staff').trim().slice(0, 60) || 'Staff';
+      const a = VO.addAgent(s, r.hit.id, { role, name: op.name ? String(op.name).slice(0, 40) : undefined });
+      VO.autoLayout(s);
+      VO.log(s, `Karyawan baru dari Telegram: ${a.name} — ${role} (${r.hit.name})`, 'user');
+      return { ok: true, text: `**${a.name}** (${role}) bergabung ke departemen ${r.hit.name}.` };
+    }
+    return { ok: false, text: 'Perintah tidak dikenal.' };
+  };
+
   // Geser zona divisi (ikut memindahkan ruang departemen & meja direktur)
   VO.setZone = function (s, div, z, moveChildren = true) {
     const dx = z.x - div.zone.x, dy = z.y - div.zone.y;

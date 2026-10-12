@@ -3,7 +3,8 @@
   "framework": null,
   "functions": {
     "api/*.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "js/model.js"
     }
   },
   "headers": [

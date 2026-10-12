@@ -235,10 +235,15 @@ Cara pakai di Telegram:
 | `@Hadi Prime cek progres sprint` atau `@HadiPrime …` | dikerjakan satu karyawan saja (nama depan saja cukup bila tidak ada yang kembar; bila kembar, bot menanyakan yang dimaksud) |
 | `/tim` | daftar divisi & karyawan beserta nama `@` untuk disalin |
 | `/status` | 5 tugas terakhir |
+| `/divisi Logistik` | divisi baru + direktur |
+| `/divisi Logistik: Gudang, Pengiriman` | divisi baru sekaligus departemennya (tiap departemen: ketua tim + 2 staf) |
+| `/departemen @Logistik Armada` · `… Armada 4` | departemen baru di divisi (ketua + 2 staf, atau jumlah staf sesuai angka) · nama berspasi: `/departemen Divisi Logistik: Armada` |
+| `/rekrut @Gudang Admin Stok` | karyawan baru di departemen |
 | `/help`, `/unlink` | bantuan, putuskan chat |
 
 - **Kantor sedang dibuka** (tab terlihat): perintah masuk antrean, dikerjakan seluruh hierarki (briefing, kerja, laporan, Gudang Dokumen) dengan animasi, lalu laporan dikirim ke Telegram.
 - **Kantor tidak dibuka**: perintah langsung dikerjakan AI di server atas nama divisi/karyawan tujuan, laporan disimpan ke Gudang Dokumen dan dikirim ke Telegram; saat kantor dibuka, tugasnya muncul di daftar Tugas.
+- Perubahan struktur: bila ada tab kantor terbuka, perubahan diterapkan oleh tab itu (lalu tersimpan seperti biasa); bila tidak, server mengubah data kantor di database memakai `js/model.js` yang sama, lalu denah ditata ulang otomatis. Tab lama yang dibuka sebelum perubahan tidak bisa menimpanya (server menolak simpanan versi lama dan tab dimuat ulang).
 - Keamanan: webhook diverifikasi dengan secret token; hanya chat yang sudah ditautkan (kode sekali pakai, 15 menit) yang bisa memberi perintah.
 - Endpoint: `/api/telegram` — dari Telegram (dikenali lewat header secret token) dan dari aplikasi (wajib login). Satu endpoint saja karena paket Hobby Vercel membatasi jumlah function. Butuh database Upstash.
 

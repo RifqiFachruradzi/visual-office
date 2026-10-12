@@ -31,6 +31,12 @@
 
   function handle(c) {
     const s = VO.app.state;
+    if (c.op) { // perubahan struktur dari Telegram (divisi / departemen / karyawan baru)
+      const r = VO.applyOp(s, c.op);
+      if (r.ok) { VO.app.layoutChanged(); VO.ui.toast('Telegram: ' + r.text.replace(/\*\*/g, ''), 'send'); }
+      api('POST', { action: 'reply', chatId: c.chatId, text: (r.ok ? '✅ ' : '⚠️ ') + r.text + (r.ok ? '\n\nKetik /tim untuk melihat struktur terbaru.' : '') }).catch(() => {});
+      return;
+    }
     if (c.done) { // sudah dikerjakan server (kantor sedang tidak dibuka)
       if (!s.tasks.some((t) => t.id === c.id)) {
         s.tasks.unshift({ id: c.id, title: c.title, targetType: c.target.type, targetId: c.target.id, status: 'done', created: c.t, finished: Date.now(), subtasks: [], result: c.result, note: 'Dari Telegram — dikerjakan server saat kantor tidak dibuka', ai: true, source: 'telegram' });
