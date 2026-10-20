@@ -8,14 +8,14 @@
  * ========================================================================= */
 (function () {
   const VO = window.VO;
-  const F = (VO.files = { mode: null, max: 50 * 1024 * 1024, local: new Map() });
+  const F = (VO.files = { mode: null, auth: null, max: 50 * 1024 * 1024, local: new Map() });
 
   F.status = async function () {
     if (F.mode) return F.mode;
     try {
       const r = await fetch('/api/office?files=status', { cache: 'no-store' });
       const j = await r.json();
-      F.mode = j.mode || 'none'; F.max = j.max || F.max;
+      F.mode = j.mode || 'none'; F.auth = j.auth || 'token'; F.max = j.max || F.max;
     } catch (e) { F.mode = 'none'; }
     return F.mode;
   };
@@ -38,9 +38,11 @@
     const meta = { name: safe(name), type, size: blob.size };
     if (mode === 'blob') {
       if (!blobLib) blobLib = await import('../vendor/blob/blob-client.js');
-      const r = await blobLib.upload('vo/' + meta.name, blob, {
+      // OIDC (cara baru Vercel) → upload presigned; token lama → client token
+      const up = F.auth === 'oidc' ? blobLib.uploadPresigned : blobLib.upload;
+      const r = await up('vo/' + meta.name, blob, {
         access: 'public', contentType: type, handleUploadUrl: '/api/office?files=token',
-        multipart: blob.size > 8 * 1024 * 1024,
+        multipart: F.auth !== 'oidc' && blob.size > 8 * 1024 * 1024,
         onUploadProgress: onProgress ? (e) => onProgress(e.percentage / 100) : undefined,
       });
       return { ...meta, url: r.url };

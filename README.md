@@ -277,7 +277,7 @@ Video dibuat **lewat kode**, bukan diedit manual — seperti video explainer "Ch
 ### Penyimpanan file (video, PDF, gambar) — Vercel Blob
 
 Supaya file bisa dibuka dari perangkat mana pun dan dikirim ke Telegram:
-Vercel → project → **Storage** → **Create** → **Blob** (akses **Public**) → **Connect** ke project (variabel `BLOB_READ_WRITE_TOKEN` terisi otomatis) → **Redeploy**.
+Vercel → project → **Storage** → **Create** → **Blob** (akses **Public**) → **Connect** ke project → **Redeploy**. Vercel kini menyambungkan lewat **OIDC** (variabel `BLOB_STORE_ID` + `BLOB_WEBHOOK_PUBLIC_KEY`, token per request) — didukung otomatis memakai upload *presigned*; `BLOB_READ_WRITE_TOKEN` lama juga tetap didukung bila ada.
 
 - Browser mengunggah langsung ke Blob (handshake lewat `/api/office?files=token`), jadi file sampai 50 MB tidak terbentur batas 4,5 MB request Vercel. Bot Telegram mengirim file ≤ 50 MB (MP4 → video, gambar → foto, lainnya → dokumen).
 - Gudang Dokumen: **Unggah** file apa pun (teks → pengetahuan agen; PDF/video/gambar → disimpan), pratinjau, unduh, **Kirim ke Telegram**; laporan teks bisa dikirim sebagai PDF.
