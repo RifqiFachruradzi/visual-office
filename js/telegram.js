@@ -50,6 +50,16 @@
       return;
     }
     const t = validTarget(s, c.target);
+    if (c.video) { // permintaan video → programmatic video, MP4 dikirim balik ke chat ini
+      if (!VO.video.supported()) { api('POST', { action: 'reply', chatId: c.chatId, text: '⚠️ Browser yang membuka Visual Office belum bisa membuat video (pakai Chrome/Edge terbaru).' }).catch(() => {}); return; }
+      const divId = t.type === 'division' ? t.id : t.type === 'dept' ? (s.departments.find((d) => d.id === t.id) || {}).divisionId : t.type === 'agent' ? (s.agents.find((a) => a.id === t.id) || {}).divisionId : null;
+      VO.log(s, `Permintaan video dari Telegram: "${c.title}"`, 'send');
+      const go = (image) => VO.gallery.start({ brief: c.title || 'Video tentang produk ini', divisionId: divId || null, image, telegram: c.chatId, style: c.photo && !c.title ? 'iklan' : undefined })
+        .catch((e) => api('POST', { action: 'reply', chatId: c.chatId, text: '⚠️ Gagal membuat video: ' + e.message }).catch(() => {}));
+      if (c.photo) fetch('/api/telegram?action=photo&id=' + encodeURIComponent(c.photo)).then((r) => (r.ok ? r.blob() : null)).catch(() => null).then(go);
+      else go(null);
+      return;
+    }
     VO.log(s, `Perintah dari Telegram → ${c.target.label}: "${c.title}"`, 'send');
     VO.ui.toast('Perintah baru dari Telegram', 'send');
     const task = VO.tasks.create({ title: c.title, targetType: t.type, targetId: t.id });

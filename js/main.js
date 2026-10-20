@@ -498,6 +498,14 @@
       const title = $('taskTitle').value.trim();
       if (!title) return;
       const [targetType, targetId] = $('taskTarget').value.split(':');
+      // perintah membuat video → alur programmatic video (naskah → template → MP4 → Galeri)
+      if (VO.video && VO.video.isRequest(title) && VO.video.supported()) {
+        const s = app.state;
+        const divId = targetType === 'division' ? targetId : targetType === 'dept' ? (s.departments.find((d) => d.id === targetId) || {}).divisionId : targetType === 'agent' ? (s.agents.find((a) => a.id === targetId) || {}).divisionId : null;
+        $('taskTitle').value = '';
+        VO.gallery.start({ brief: title, divisionId: divId || null }).catch(() => {});
+        return;
+      }
       const t = VO.tasks.create({ title, targetType, targetId });
       $('taskTitle').value = '';
       VO.ui.toast(t.ai ? `Tugas dikirim — agen memakai ${VO.ai.label()}` : 'Tugas dikirim ke tim', 'send');
@@ -511,6 +519,8 @@
         $('taskList').classList.toggle('hidden', tab.dataset.tab !== 'tasks');
         $('logList').classList.toggle('hidden', tab.dataset.tab !== 'log');
         $('docPane').classList.toggle('hidden', tab.dataset.tab !== 'docs');
+        $('galleryPane').classList.toggle('hidden', tab.dataset.tab !== 'gallery');
+        if (tab.dataset.tab === 'gallery') VO.gallery.render();
       })
     );
     $('taskList').addEventListener('click', (e) => {

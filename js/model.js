@@ -135,6 +135,7 @@
       furniture: [],
       tasks: [],
       docs: [],
+      videos: [], // galeri video (programmatic video)
       log: [],
     };
     for (const t of ['boss', 'meeting', 'pantry', 'pool', 'billiard']) VO.addFacility(s, t);
@@ -556,7 +557,9 @@
     const needV9 = !(s.settings && s.settings.layoutV9);
     const needV10 = !(s.settings && s.settings.assetsV10);
     const needV11 = !(s.settings && s.settings.symV11);
-    for (const k of ['facilities', 'divisions', 'departments', 'agents', 'furniture', 'tasks', 'docs', 'log']) if (!Array.isArray(s[k])) s[k] = [];
+    for (const k of ['facilities', 'divisions', 'departments', 'agents', 'furniture', 'tasks', 'docs', 'log', 'videos']) if (!Array.isArray(s[k])) s[k] = [];
+    // video yang sedang diproduksi tidak bisa dilanjutkan setelah halaman dimuat ulang
+    for (const v of s.videos) if (v.status === 'producing') { v.status = 'failed'; v.error = 'Terputus (halaman dimuat ulang)'; }
     s.settings = { ...d.settings, ...(s.settings || {}) };
     s.company = s.company || d.company;
     // v2: pindah ke Gemini (gratis) sebagai model default

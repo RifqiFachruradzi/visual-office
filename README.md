@@ -261,3 +261,24 @@ Klik label status AI di bar atas (mis. **"Gemini aktif"**) untuk memilih sumber 
 - Isi **API key** bila 9router mewajibkannya, dan **model/combo** (daftar diambil dari 9router lewat tombol *Tes koneksi*).
 - Perintah Telegram yang dikerjakan saat kantor tidak dibuka berjalan di server → memakai Gemini.
 - Di server: bila `NINEROUTER_BASE_URL` masih diisi tetapi 9router tidak terjangkau (mis. VPS habis), panggilan otomatis pindah ke Gemini. Disarankan hapus variabel `NINEROUTER_*` di Vercel bila VPS sudah tidak dipakai.
+
+## Programmatic video (naskah → template → MP4 → Galeri & jadwal tayang)
+
+Video dibuat **lewat kode**, bukan diedit manual — seperti video explainer "ChatGPT 2,9 Wh vs Google 0,3 Wh".
+
+1. **Beri tugas video**: tulis di *Perintah Boss* (mis. `buat video penjelasan biaya listrik AI`), klik **🎬 Buat video**, atau dari Telegram `/video …` / `@Sosmed buat video …` (bisa kirim foto + caption `/video …`).
+2. **Tim mengerjakan**: divisi Sosmed/Marketing/Konten (dicari otomatis dari nama divisi/departemen) briefing, riset & menulis naskah kasar seperti tugas biasa (animasi kantor).
+3. **Naskah terstruktur**: AI menyusun storyboard JSON — tiap adegan memakai satu **template** + isinya.
+4. **Render MP4 di browser** (WebCodecs + mp4-muxer): tidak butuh VPS/server render dan tidak terbatas 60 detik Vercel. Chrome/Edge memakai H.264 (MP4 yang diterima TikTok/IG/YouTube/Telegram); browser tanpa H.264 memakai cadangan VP9.
+5. **Galeri** (tab 🎬 Galeri): putar, unduh, salin caption, kirim ke Telegram, atur **jadwal tayang** & platform (YouTube, TikTok, Instagram, Facebook, Threads). Saat jadwal tiba, Visual Office mengingatkan di aplikasi & Telegram (lengkap dengan file videonya); unggahan ke platform dilakukan manual.
+
+**Template** (`js/video.js`): `title` (judul pembuka), `stat` (angka besar menghitung naik), `compare` (grafik batang perbandingan + badge "≈ 9,7×"), `bullets`, `steps`, `quote`, `countdown`, `versus` (mitos vs fakta), `image` (foto produk), `price`, `cta`. **Gaya**: explainer, tips, iklan, berita, perbandingan, teaser. **Format**: 9:16 (TikTok/Reels/Shorts) & 16:9 (YouTube). Tanpa Mode AI, naskah memakai templat bawaan dari brief.
+
+### Penyimpanan file (video, PDF, gambar) — Vercel Blob
+
+Supaya file bisa dibuka dari perangkat mana pun dan dikirim ke Telegram:
+Vercel → project → **Storage** → **Create** → **Blob** (akses **Public**) → **Connect** ke project (variabel `BLOB_READ_WRITE_TOKEN` terisi otomatis) → **Redeploy**.
+
+- Browser mengunggah langsung ke Blob (handshake lewat `/api/office?files=token`), jadi file sampai 50 MB tidak terbentur batas 4,5 MB request Vercel. Bot Telegram mengirim file ≤ 50 MB (MP4 → video, gambar → foto, lainnya → dokumen).
+- Gudang Dokumen: **Unggah** file apa pun (teks → pengetahuan agen; PDF/video/gambar → disimpan), pratinjau, unduh, **Kirim ke Telegram**; laporan teks bisa dikirim sebagai PDF.
+- Tanpa Blob: di Vercel file hanya bisa diunduh di browser yang membuatnya; di server lokal (`npm start`) file disimpan di folder sementara dan disajikan dari `/files/…`.

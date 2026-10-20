@@ -128,22 +128,30 @@
             <select id="taskTarget"></select>
             <button type="submit" class="primary">Kirim</button>
           </div>
+          <div class="row">
+            <button type="button" id="btnVideo" class="small" title="Divisi Sosmed membuat video programmatic (naskah → template → MP4) — masuk Galeri & bisa dikirim ke Telegram">🎬 Buat video</button>
+          </div>
         </form>
       </section>
       <section class="card grow">
         <div class="tabs">
           <button class="tab active" data-tab="tasks">Tugas</button>
           <button class="tab" data-tab="docs"><i data-icon="book"></i> Dokumen <span id="docCount" class="badge">0</span></button>
+          <button class="tab" data-tab="gallery">🎬 Galeri <span id="galleryCount" class="badge">0</span></button>
           <button class="tab" data-tab="log">Aktivitas</button>
         </div>
         <div id="taskList" class="list"></div>
         <div id="docPane" class="list hidden">
           <div class="doc-tools">
             <input type="text" id="docSearch" placeholder="Cari dokumen…" />
-            <button id="docUpload" class="small" title="Unggah .txt / .md sebagai pengetahuan untuk agen"><i data-icon="upload"></i> Unggah</button>
-            <input type="file" id="docFile" accept=".txt,.md,.markdown,.csv,.json,text/*" multiple hidden />
+            <button id="docUpload" class="small" title="Unggah file apa pun (.txt/.md jadi pengetahuan agen; PDF, video, gambar disimpan & bisa dikirim ke Telegram)"><i data-icon="upload"></i> Unggah</button>
+            <input type="file" id="docFile" multiple hidden />
           </div>
           <div id="docList" class="list"></div>
+        </div>
+        <div id="galleryPane" class="list hidden">
+          <div class="doc-tools"><button id="btnGalleryNew" class="small primary">🎬 Buat video</button><span class="muted" style="font-size:11px">naskah AI → template → MP4 → jadwal tayang</span></div>
+          <div id="galleryList" class="list"></div>
         </div>
         <div id="logList" class="list hidden"></div>
       </section>
@@ -183,6 +191,9 @@
   <script src="js/publicdata.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/tasks.js"></script>
+  <script src="js/files.js"></script>
+  <script src="js/video.js"></script>
+  <script src="js/gallery.js"></script>
   <script src="js/telegram.js"></script>
   <script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js","three/addons/":"./vendor/three/addons/"}}</script>
   <script type="module" src="js/scene3d.js"></script>

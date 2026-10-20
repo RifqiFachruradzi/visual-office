@@ -30,7 +30,7 @@ const PORT = Number(process.env.PORT || 4317);
 const HOST = process.env.HOST || '127.0.0.1';
 
 /* ------------------------------------------------------------ util */
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary' };
 
 function readBody(req, limit = 1_000_000) {
   return new Promise((resolve, reject) => {
@@ -81,6 +81,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/minimarket') return handleMinimarket(req, res);
     if (url.pathname === '/api/public') return handlePublic(req, res);
     if (url.pathname === '/api/telegram') return handleTelegramAll(req, res);
+    if (url.pathname.startsWith('/files/')) { // file hasil kerja (mode lokal tanpa Vercel Blob)
+      if (!(await gate(url.pathname, req.headers.cookie)).ok) { res.writeHead(401); return res.end('Belum login'); }
+      const { serveLocalFile } = await import('../lib/files.js');
+      return serveLocalFile(req, res, url.pathname.slice(7));
+    }
     if (url.pathname === '/api/health') {
       return json(res, 200, { ok: true, ...status(), live: true, host: 'local', listeners: listeners.size });
     }

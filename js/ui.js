@@ -497,8 +497,9 @@
     const s = S();
     const q = ($('docSearch').value || '').toLowerCase().trim();
     const list = q ? s.docs.filter((d) => (d.title + ' ' + d.author + ' ' + d.content).toLowerCase().includes(q)) : s.docs;
-    let h = list.slice(0, 150).map((d) => `<div class="doc" data-id="${d.id}"><div class="t">${VO.icon('file')} ${esc(d.title)}</div>
-      <div class="meta"><span class="kind ${d.kind}">${KIND[d.kind] || d.kind}</span><span>${esc(d.author)}</span><span>· ${fmtTime(d.t)}</span><span>· ${d.content.length < 1000 ? d.content.length : Math.round(d.content.length / 100) / 10 + 'k'} karakter</span></div></div>`).join('');
+    const size = (d) => (d.file ? '📎 ' + VO.files.fmtSize(d.file.size) : (d.content.length < 1000 ? d.content.length : Math.round(d.content.length / 100) / 10 + 'k') + ' karakter');
+    let h = list.slice(0, 150).map((d) => `<div class="doc" data-id="${d.id}"><div class="t">${VO.icon(d.file ? VO.files.icon(d.file) : 'file')} ${esc(d.title)}</div>
+      <div class="meta"><span class="kind ${d.kind}">${KIND[d.kind] || d.kind}</span><span>${esc(d.author)}</span><span>· ${fmtTime(d.t)}</span><span>· ${size(d)}</span></div></div>`).join('');
     if (!h) h = q ? `<p class="empty">Tidak ada dokumen cocok.</p>` : `<p class="empty">Gudang dokumen masih kosong. Laporan tugas yang selesai tersimpan di sini otomatis, dan kamu bisa <b>Unggah</b> file .txt/.md sebagai pengetahuan — agen akan membacanya bila relevan dengan tugas.</p>`;
     const el = $('docList');
     if (el._html !== h) { el.innerHTML = h; el._html = h; }
@@ -509,9 +510,15 @@
     const d = S().docs.find((x) => x.id === id);
     if (!d) return;
     $('resultTitle').textContent = d.title;
-    $('resultBody').innerHTML = `<div style="color:var(--muted)">${KIND[d.kind] || d.kind} · ${esc(d.author)} · ${new Date(d.t).toLocaleString('id-ID')}</div>
-      <div class="btns" style="margin:8px 0"><button type="button" class="small primary" data-doc="pdf" data-id="${d.id}">${VO.icon('download')} Unduh PDF</button><button type="button" class="small" data-doc="download" data-id="${d.id}">${VO.icon('file')} Unduh .md</button><button type="button" class="small danger" data-doc="delete" data-id="${d.id}">${VO.icon('trash')} Hapus</button></div>
-      <div>${ui.md(d.content)}</div>`;
+    const f = d.file, fk = f && VO.files.kindOf(f.type, f.name);
+    const preview = !f ? '' : fk === 'video' ? `<video src="${esc(f.url)}" controls playsinline class="gvideo"></video>`
+      : fk === 'image' ? `<img src="${esc(f.url)}" alt="" class="gimg">` : fk === 'pdf' ? `<iframe src="${esc(f.url)}" class="gpdf" title="PDF"></iframe>` : '';
+    const fileBtns = f ? `<button type="button" class="small primary" data-doc="file" data-id="${d.id}">${VO.icon('download')} Unduh ${esc(f.name)}</button><button type="button" class="small" data-doc="tgfile" data-id="${d.id}">${VO.icon('send')} Kirim ke Telegram</button>`
+      : `<button type="button" class="small primary" data-doc="pdf" data-id="${d.id}">${VO.icon('download')} Unduh PDF</button><button type="button" class="small" data-doc="tgpdf" data-id="${d.id}">${VO.icon('send')} Kirim PDF ke Telegram</button><button type="button" class="small" data-doc="download" data-id="${d.id}">${VO.icon('file')} Unduh .md</button>`;
+    $('resultBody').innerHTML = `<div style="color:var(--muted)">${KIND[d.kind] || d.kind} · ${esc(d.author)} · ${new Date(d.t).toLocaleString('id-ID')}${f ? ' · ' + VO.files.fmtSize(f.size) : ''}</div>
+      ${f && f.localOnly ? '<div class="gwarn">File hanya ada di browser ini (penyimpanan cloud belum aktif).</div>' : ''}
+      <div class="btns" style="margin:8px 0">${fileBtns}<button type="button" class="small danger" data-doc="delete" data-id="${d.id}">${VO.icon('trash')} Hapus</button></div>
+      ${preview}<div>${ui.md(d.content)}</div>`;
     $('resultDlg').showModal();
   };
 
@@ -522,9 +529,18 @@
     $('docFile').addEventListener('change', async (e) => {
       let n = 0;
       for (const f of e.target.files) {
-        if (f.size > 500_000) { ui.toast(f.name + ' terlalu besar (maks 500 KB)', 'alert'); continue; }
-        VO.addDoc(S(), { kind: 'upload', title: f.name, author: (S().boss.name || 'Boss') + ' (unggahan)', content: await f.text() });
-        n++;
+        const textual = /^text\/|json|csv|markdown/.test(f.type) || /\.(txt|md|markdown|csv|json)$/i.test(f.name);
+        try {
+          if (textual && f.size <= 500_000) { // teks → jadi pengetahuan yang dibaca agen
+            VO.addDoc(S(), { kind: 'upload', title: f.name, author: (S().boss.name || 'Boss') + ' (unggahan)', content: await f.text() });
+          } else { // PDF, video, gambar, dll. → disimpan sebagai file (bisa dibuka & dikirim ke Telegram)
+            ui.toast('Mengunggah ' + f.name + '…', 'upload');
+            const file = await VO.files.upload(f, f.name);
+            const d = VO.addDoc(S(), { kind: 'upload', title: f.name, author: (S().boss.name || 'Boss') + ' (unggahan)', content: '' });
+            d.file = file;
+          }
+          n++;
+        } catch (err) { ui.toast(f.name + ': ' + err.message, 'alert'); }
       }
       e.target.value = '';
       if (n) { VO.log(S(), `${n} dokumen diunggah ke Gudang Dokumen`, 'book'); VO.app.changed(); ui.renderDocs(); ui.toast(`${n} dokumen tersimpan`, 'book'); }
@@ -555,7 +571,22 @@
         a.download = d.title.replace(/[^\w\- ]+/g, '_').slice(0, 80) + '.md';
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      } else if (b.dataset.doc === 'file') {
+        VO.files.download(d.file);
+      } else if (b.dataset.doc === 'tgfile' || b.dataset.doc === 'tgpdf') {
+        b.disabled = true;
+        (async () => {
+          let file = d.file;
+          if (!file) { // laporan teks → PDF dulu
+            const pdfB = await VO.pdf.build({ title: d.title, meta: `${KIND[d.kind] || d.kind} · ${d.author} · ${new Date(d.t).toLocaleString('id-ID')}`, sections: [{ body: d.content }] });
+            file = await VO.files.upload(pdfB.blob, pdfB.name);
+          }
+          const n = await VO.files.sendTelegram(file, d.title);
+          ui.toast(`Terkirim ke ${n} chat Telegram`, 'send');
+        })().catch((err) => ui.toast('Telegram: ' + err.message, 'alert')).finally(() => { b.disabled = false; });
       } else {
+        // file video tetap dipakai Galeri → hanya dihapus bila tidak ada video yang memakainya
+        if (d.file && !(s.videos || []).some((v) => v.file && v.file.url === d.file.url)) VO.files.remove(d.file);
         s.docs = s.docs.filter((x) => x !== d);
         $('resultDlg').close();
         VO.app.changed(); ui.renderDocs();

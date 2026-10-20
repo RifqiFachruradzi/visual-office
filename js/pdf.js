@@ -38,12 +38,17 @@
    * Buat & unduh PDF. sections: [{ heading?, body (markdown) }]
    */
   pdf.download = async function ({ title, meta, sections }) {
-    let JsPDF;
-    try {
-      JsPDF = await loadJsPdf();
-    } catch (e) {
-      return printFallback({ title, meta, sections });
-    }
+    let built;
+    try { built = await pdf.build({ title, meta, sections }); }
+    catch (e) { return printFallback({ title, meta, sections }); }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(built.blob); a.download = built.name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+
+  /** Buat PDF tanpa mengunduh → { blob, name } (dipakai untuk dikirim ke Telegram / disimpan). */
+  pdf.build = async function ({ title, meta, sections }) {
+    const JsPDF = await loadJsPdf();
     const doc = new JsPDF({ unit: 'pt', format: 'a4' });
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
     const M = 50, maxW = W - M * 2;
@@ -141,7 +146,7 @@
       doc.text(`Visual Office  ·  ${clean(title).slice(0, 70)}`, M, H - 24);
       doc.text(`${i} / ${n}`, W - M, H - 24, { align: 'right' });
     }
-    doc.save(fileName(title));
+    return { blob: doc.output('blob'), name: fileName(title) };
   };
 
   // Cadangan: buka jendela cetak (pengguna memilih "Simpan sebagai PDF")
