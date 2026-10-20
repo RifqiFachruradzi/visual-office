@@ -7,9 +7,9 @@
  * dan otomatis dicoba ulang bila kena 429.
  * Jika halaman dibuka dari file:// semuanya non-aktif → mode simulasi.
  *
- * Sumber AI (disimpan per perangkat): 'auto' = pakai 9router di komputer ini bila
- * terjangkau (mis. http://localhost:20128/v1, dipanggil langsung dari browser),
- * selain itu AI server (Gemini) · 'local' = selalu 9router lokal · 'server' = selalu Gemini.
+ * Sumber AI: selalu lewat server ('server') — server memakai 9router di VPS (NINEROUTER_BASE_URL)
+ * dan pindah ke Gemini bila 9router tidak menjawab. Jalur 9router lokal (dipanggil langsung dari
+ * browser, mode 'auto' / 'local') masih ada di kode tetapi tidak lagi bisa dipilih di aplikasi.
  * ========================================================================= */
 (function () {
   const VO = window.VO;
@@ -21,7 +21,7 @@
   /* ------------------------------------------------------------ sumber AI: 9router lokal / server */
   const SRC_KEY = 'vo:aiSource';
   const loadSrc = () => { try { return JSON.parse(localStorage.getItem(SRC_KEY) || '{}'); } catch (e) { return {}; } };
-  ai.src = Object.assign({ mode: 'auto', url: 'http://localhost:20128/v1', key: '', model: '' }, loadSrc());
+  ai.src = Object.assign({ url: 'http://localhost:20128/v1', key: '', model: '' }, loadSrc(), { mode: 'server' });
   ai.local = { ok: false, checked: 0, error: '', models: [] };
   ai.serverAvailable = false;
   ai.onChange = null; // dipasang main.js untuk memperbarui label status AI

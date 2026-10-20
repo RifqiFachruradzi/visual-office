@@ -247,20 +247,12 @@ Cara pakai di Telegram:
 - Keamanan: webhook diverifikasi dengan secret token; hanya chat yang sudah ditautkan (kode sekali pakai, 15 menit) yang bisa memberi perintah.
 - Endpoint: `/api/telegram` — dari Telegram (dikenali lewat header secret token) dan dari aplikasi (wajib login). Satu endpoint saja karena paket Hobby Vercel membatasi jumlah function. Butuh database Upstash.
 
-## Sumber AI: 9router lokal (di rumah) atau Gemini (di luar)
+## Sumber AI: 9router di VPS, Gemini sebagai cadangan
 
-Klik label status AI di bar atas (mis. **"Gemini aktif"**) untuk memilih sumber AI. Pengaturan disimpan per perangkat.
-
-| Pilihan | Perilaku |
-|---|---|
-| **Otomatis** (disarankan) | Browser mengecek 9router di komputer ini (`http://localhost:20128/v1`) saat dibuka dan tiap 30 detik. Terdeteksi → semua karyawan memakai 9router lokal; tidak terdeteksi / mendadak mati → otomatis memakai Gemini lewat server. |
-| Selalu 9router lokal | Selalu ke 9router di komputer ini (gagal bila 9router tidak jalan). |
-| Selalu Gemini | Selalu lewat server (`GEMINI_API_KEY` di Vercel). |
-
-- 9router dipanggil **langsung dari browser** (9router mengizinkan CORS), jadi hanya bekerja di komputer tempat 9router berjalan; Vercel tidak bisa menjangkau `localhost` di rumah. Bila Chrome menanyakan izin *akses jaringan lokal*, pilih **Izinkan**.
-- Isi **API key** bila 9router mewajibkannya, dan **model/combo** (daftar diambil dari 9router lewat tombol *Tes koneksi*).
-- Perintah Telegram yang dikerjakan saat kantor tidak dibuka berjalan di server → memakai Gemini.
-- Di server: bila `NINEROUTER_BASE_URL` masih diisi tetapi 9router tidak terjangkau (mis. VPS habis), panggilan otomatis pindah ke Gemini. Disarankan hapus variabel `NINEROUTER_*` di Vercel bila VPS sudah tidak dipakai.
+Semua panggilan AI (dari browser, Telegram, dan pembuatan naskah video) lewat server Vercel:
+**9router di VPS** (`NINEROUTER_BASE_URL` + `NINEROUTER_API_KEY`) dipakai lebih dulu; bila 9router tidak menjawab
+(error 5xx / jaringan / tidak tersambung dalam 12 detik), otomatis pindah ke **Gemini** (`GEMINI_API_KEY`).
+Tidak ada pengaturan sumber AI di aplikasi. Mode AI bisa dimatikan dari menu ⚙ (kembali ke simulasi).
 
 ## Programmatic video (naskah → template → MP4 → Galeri & jadwal tayang)
 
