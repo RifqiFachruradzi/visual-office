@@ -16,7 +16,7 @@
  *   BROWSER_EXECUTABLE     (opsional) Chrome/Chromium headless; default diunduh Remotion
  *   RENDER_CONCURRENCY     (opsional) tab paralel saat render, default 1 (VPS 2 core / 2 GB)
  *
- * Tes tanpa server:  node worker.mjs --test [bold|minimal|neon|editorial|playful|all] [--still] [--sb naskah.json] [--image foto.png] [--music] [16:9]
+ * Tes tanpa server:  node worker.mjs --test [bold|minimal|neon|editorial|playful|all] [--still] [--sb naskah.json] [--image foto.png] [--assets a.jpg,b.mp4] [--music] [16:9]
  * ========================================================================= */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -124,6 +124,7 @@ async function prepareMedia(job, dir, sb) {
   const orientation = job.format === '16:9' ? 'landscape' : 'portrait';
   let n = 0;
   for (const [i, sc] of sb.scenes.entries()) {
+    if (sc.own) continue; // sudah memakai aset dari Boss
     const want = sc.t === 'media' || (sc.t === 'title' && i === 0) || (sc.t === 'image' && !job.imageLocal);
     if (!want || !sc.media || n >= 5) continue;
     try {
@@ -255,6 +256,29 @@ async function renderJob(job, dir, sb, extra, onProgress) {
   return { out, thumb, duration: composition.durationInFrames / FPS };
 }
 
+/* ------------------------------------------------------------ aset dari Boss */
+async function fetchAssets(job, dir, list) {
+  const out = [];
+  for (const [i, a] of list.slice(0, 8).entries()) {
+    const isVid = a.type === 'video';
+    const name = `asset${i + 1}.${isVid ? 'mp4' : 'jpg'}`;
+    try {
+      await download(/^\//.test(a.url) ? VO_URL + a.url : a.url, path.join(dir, name), { 'x-render-secret': SECRET }, 60e6);
+      out.push({ src: assetUrl(job.id, name), type: isVid ? 'video' : 'photo' });
+    } catch (e) { log(`  aset ${i + 1} gagal diunduh:`, e.message); out.push(null); }
+  }
+  job.imageLocal = out.some((a) => a && a.type === 'photo');
+  return out;
+}
+// adegan yang menunjuk nomor aset (sc.asset = 1..N) memakai file itu
+function applyAssets(sb, assets) {
+  for (const sc of sb.scenes) {
+    const a = sc.asset && assets[sc.asset - 1];
+    if (!a) continue;
+    sc.mediaSrc = a.src; sc.mediaType = a.type; sc.own = true; delete sc.credit;
+  }
+}
+
 async function processJob(job, upload) {
   const dir = path.join(WORK, job.id);
   fs.mkdirSync(dir, { recursive: true });
@@ -263,13 +287,13 @@ async function processJob(job, upload) {
   try {
     const sb = JSON.parse(JSON.stringify(job.sb));
     log(`Job ${job.id}: "${sb.title}" (${job.format}, paket ${sb.pack}, ${sb.scenes.length} adegan)`);
-    // foto produk
-    let imageUrl = null;
-    try {
-      if (job.photoId) { await download(`${VO_URL}/api/office?render=photo&id=${encodeURIComponent(job.photoId)}`, path.join(dir, 'image.jpg'), { 'x-render-secret': SECRET }); imageUrl = assetUrl(job.id, 'image.jpg'); }
-      else if (job.imageUrl) { await download(/^\//.test(job.imageUrl) ? VO_URL + job.imageUrl : job.imageUrl, path.join(dir, 'image.jpg'), { 'x-render-secret': SECRET }); imageUrl = assetUrl(job.id, 'image.jpg'); }
-    } catch (e) { log('  foto produk gagal:', e.message); }
-    job.imageLocal = !!imageUrl;
+    // aset Boss (foto/video): daftar dari aplikasi, atau satu foto lama (Telegram / imageUrl) sebagai aset #1
+    const list = Array.isArray(job.assets) && job.assets.length ? job.assets
+      : job.photoId ? [{ url: `/api/office?render=photo&id=${encodeURIComponent(job.photoId)}`, type: 'photo' }]
+      : job.imageUrl ? [{ url: job.imageUrl, type: 'photo' }] : [];
+    const assets = await fetchAssets(job, dir, list);
+    const imageUrl = (assets.find((a) => a && a.type === 'photo') || {}).src || null; // cadangan untuk adegan image tanpa nomor
+    applyAssets(sb, assets);
     await progress(0.02, 'media');
     await prepareMedia(job, dir, sb);
     await progress(0.05, 'narasi');
@@ -281,7 +305,7 @@ async function processJob(job, upload) {
     const file = await uploadFile(r.out, `${slug}.mp4`, 'video/mp4', upload.mode, upload.auth);
     const thumb = await uploadFile(r.thumb, `${slug}-thumb.jpg`, 'image/jpeg', upload.mode, upload.auth).catch(() => null);
     // URL lokal (127.0.0.1) tidak berguna di luar VPS → buang dari naskah yang dikembalikan
-    for (const sc of sb.scenes) { delete sc.mediaSrc; delete sc.mediaType; }
+    for (const sc of sb.scenes) { delete sc.mediaSrc; delete sc.mediaType; delete sc.own; }
     sb.narrated = !!voice;
     await api('done', { id: job.id, file, thumb, duration: r.duration, sb });
     log(`  selesai dalam ${Math.round((Date.now() - t0) / 1000)} dtk → ${file.url}`);
@@ -334,6 +358,11 @@ async function testMode(args) {
     const img = args[args.indexOf('--image') + 1];
     let imageUrl = null;
     if (args.includes('--image') && img && fs.existsSync(img)) { fs.copyFileSync(img, path.join(dir, 'image.jpg')); imageUrl = assetUrl(job.id, 'image.jpg'); job.imageLocal = true; }
+    if (args.includes('--assets')) { // tes beberapa aset: --assets foto1.jpg,video.mp4,…
+      const files = args[args.indexOf('--assets') + 1].split(',').filter((f) => fs.existsSync(f));
+      const assets = files.map((f, i) => { const v = /\.(mp4|webm|mov)$/i.test(f), name = `asset${i + 1}.${v ? 'mp4' : 'jpg'}`; fs.copyFileSync(f, path.join(dir, name)); return { src: assetUrl(job.id, name), type: v ? 'video' : 'photo' }; });
+      applyAssets(sb, assets); job.imageLocal = assets.some((a) => a.type === 'photo');
+    }
     await prepareMedia(job, dir, sb);
     // subtitle contoh (tanpa TTS): waktu kata dibagi rata per adegan
     const words = []; let t = 0;

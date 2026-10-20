@@ -47,6 +47,8 @@
   B.MUSIC = { upbeat: 'Ceria / energik', calm: 'Tenang / lo-fi', drama: 'Dramatis / sinematik', none: 'Tanpa musik' };
   B.VOICES = { female: 'Narasi suara perempuan', male: 'Narasi suara laki-laki', none: 'Tanpa narasi' };
 
+  // jumlah aset (foto/video) dari Boss: o.assets [{kind,name}] atau satu foto lama (o.image)
+  B.assetCount = (o) => (Array.isArray(o.assets) && o.assets.length ? Math.min(12, o.assets.length) : o.image ? 1 : 0);
   B.isRequest = (t) => /\b(video|reels?|shorts|tiktok)\b/i.test(String(t || '')) && /\b(buat|buatkan|bikin|bikinin|render|produksi|siapkan|susun)\b/i.test(String(t || ''));
   B.guessStyle = (brief) => (/iklan|promo|jual|produk/i.test(brief) ? 'iklan' : /tips|cara|tutorial|langkah/i.test(brief) ? 'tips' : /\bvs\b|banding/i.test(brief) ? 'perbandingan' : /berita|update|kabar/i.test(brief) ? 'berita' : 'explainer');
 
@@ -63,6 +65,7 @@
     sc.title = str(x.title || x.headline, 80); sc.sub = str(x.sub, 110); sc.kicker = str(x.kicker, 30);
     sc.narration = str(x.narration || x.vo, 260);
     if (x.media) sc.media = str(x.media, 60);
+    if (x.asset != null) { const n = parseInt(x.asset, 10); if (n >= 1 && n <= 12) sc.asset = n; } // aset dari Boss (nomor 1..N)
     if (t === 'stat') { sc.value = num(x.value); sc.unit = str(x.unit, 12); sc.prefix = str(x.prefix, 6); sc.label = str(x.label || x.sub, 90); sc.decimals = Math.max(0, Math.min(2, Number(x.decimals) || ((String(x.value).match(/[.,](\d+)$/) || [, ''])[1].length))); }
     if (t === 'compare') { sc.unit = str(x.unit, 10); sc.items = (Array.isArray(x.items) ? x.items : []).slice(0, 4).map((i) => ({ label: str(i && i.label, 22), value: num(i && i.value), note: str(i && i.note, 26) })).filter((i) => i.label); sc.highlight = Number(x.highlight) || 0; if (sc.items.length < 2) return null; }
     if (t === 'bullets' || t === 'steps') { sc.items = list(x.items || x.bullets, 5, 60); if (!sc.items.length) return null; }
@@ -84,6 +87,7 @@
     else if (style === 'tips') scenes.push({ t: 'steps', title: 'Caranya', items: ['Pahami masalahnya', 'Coba langkah kecil', 'Evaluasi hasilnya'], narration: 'Pertama pahami masalahnya, lalu coba langkah kecil, terakhir evaluasi hasilnya.' });
     else if (style === 'teaser') scenes.unshift({ t: 'countdown', from: 3, label: 'Sebentar lagi…' });
     else scenes.push({ t: 'bullets', title: 'Poin penting', items: ['Ringkas & jelas', 'Berbasis data', 'Mudah dipraktikkan'], narration: 'Intinya ringkas, berbasis data, dan mudah dipraktikkan.' });
+    for (let i = 2; i <= B.assetCount(o); i++) scenes.push({ t: i % 2 ? 'media' : 'image', title: topic, asset: i });
     scenes.push({ t: 'cta', title: o.cta || 'Follow untuk info berikutnya!', sub: brand, narration: 'Follow untuk info berikutnya!' });
     const pack = B.PACKS[o.pack] ? o.pack : 'bold';
     return B.normalize({ title: topic, brand, pack, theme: B.PACKS[pack].theme, caption: `${topic} #fyp #edukasi`, scenes }, o, true);
@@ -95,10 +99,19 @@
     let scenes = sb.scenes.map(cleanScene).filter(Boolean).slice(0, 9);
     if (scenes.length < 2) return isFallback ? { ...sb, scenes } : B.fallback(o);
     if (scenes[scenes.length - 1].t !== 'cta') scenes.push(cleanScene({ t: 'cta', title: o.cta || 'Follow untuk info berikutnya!', sub: o.brand || '' }));
-    if (!o.image) scenes = scenes.map((x) => (x.t === 'image' ? { ...x, t: 'media', media: x.media || x.title } : x)); // tanpa foto → pakai foto stok
+    const nA = B.assetCount(o);
+    if (!nA) scenes = scenes.map((x) => (x.t === 'image' ? { ...x, t: 'media', media: x.media || x.title } : x)); // tanpa aset → pakai foto stok
     const total = Math.max(10, Math.min(60, Number(o.duration) || 25));
     const sum = scenes.reduce((a, x) => a + x.sec, 0);
     scenes = scenes.map((x) => ({ ...x, sec: Math.max(x.t === 'countdown' ? x.sec : 2, Math.round(((x.sec * total) / sum) * 10) / 10) }));
+    if (nA) { // setiap aset Boss dipakai: yang belum disebut AI dipasang ke adegan image → media → title
+      scenes.forEach((x) => { if (x.asset > nA) delete x.asset; });
+      const used = new Set(scenes.map((x) => x.asset).filter(Boolean));
+      const free = []; for (let i = 1; i <= nA; i++) if (!used.has(i)) free.push(i);
+      for (const t of ['image', 'media', 'title']) for (const x of scenes) if (free.length && x.t === t && !x.asset) x.asset = free.shift();
+      // masih ada sisa → adegan media singkat sebelum penutup
+      for (const i of free) scenes.splice(scenes.length - 1, 0, { t: 'media', sec: 2.5, title: '', sub: '', kicker: '', narration: '', asset: i });
+    }
     const pack = B.PACKS[o.pack] ? o.pack : B.PACKS[sb.pack] ? sb.pack : 'bold';
     const th = {}, d = B.PACKS[pack].theme; // warna selalu dari paket visual agar tampilannya konsisten
     return {
@@ -110,7 +123,7 @@
     };
   };
 
-  /** Prompt AI untuk menyusun storyboard. o: { brief, style, format, duration, brand, cta, pack, image } */
+  /** Prompt AI untuk menyusun storyboard. o: { brief, style, format, duration, brand, cta, pack, image, assets:[{kind,name}] } */
   B.prompt = function (o, context) {
     const style = B.STYLES[o.style] || B.STYLES[B.guessStyle(o.brief || '')];
     const system = 'Kamu sutradara video pendek media sosial (TikTok/Reels/Shorts/YouTube) yang jago menulis naskah & narasi bahasa Indonesia santai, akurat, dan enak didengar. Balas HANYA JSON valid, tanpa penjelasan, tanpa ```.';
@@ -118,7 +131,10 @@
       `Buat storyboard video ${o.format === '16:9' ? 'horizontal 16:9 (YouTube)' : 'vertikal 9:16'} ±${Number(o.duration) || 25} detik, gaya: ${style.label} (urutan disarankan: ${style.hint}).`,
       `Brief dari Boss: ${o.brief}`,
       o.brand ? `Nama akun / brand: ${o.brand}` : '', o.cta ? `Ajakan penutup: ${o.cta}` : '',
-      o.image ? 'Boss melampirkan FOTO (mis. foto produk) — pakai template "image" untuk menampilkannya.' : '',
+      (() => {
+        const A = Array.isArray(o.assets) && o.assets.length ? o.assets : o.image ? [{ kind: 'photo', name: 'foto produk' }] : [];
+        return A.length ? `Boss melampirkan ${A.length} aset: ${A.map((a, i) => `${i + 1}) ${a.kind === 'video' ? 'video' : 'foto'} "${a.name || 'aset'}"`).join(', ')}. Tampilkan SEMUA aset, satu aset per adegan: pakai template "image" (dalam bingkai) atau "media" (layar penuh) dan isi field "asset" dengan nomor asetnya (1–${A.length}).` : '';
+      })(),
       o.pack ? `Paket visual ditentukan: ${o.pack}.` : `Pilih "pack" yang paling cocok dengan topik: ${Object.entries(B.PACKS).map(([k, v]) => `${k} (${v.label})`).join('; ')}.`,
       context ? `Hasil riset & naskah kasar dari tim:\n${String(context).slice(0, 3500)}` : '',
       'Template yang tersedia (field "t"):', ...Object.entries(B.TEMPLATES).map(([k, d]) => `- ${k}: ${d}`),
@@ -127,13 +143,13 @@
       'Format JSON:',
       '{"title":"judul video","brand":"…","pack":"bold|minimal|neon|editorial|playful","music":"upbeat|calm|drama","caption":"caption sosmed + 3-5 hashtag",',
       ' "scenes":[ {"t":"title","kicker":"1-2 kata","title":"maks 8 kata","sub":"…","narration":"…","media":"…","sec":3},',
-      '  {"t":"media","title":"…","sub":"…","media":"keyword english","narration":"…","sec":3.5},',
+      '  {"t":"media","title":"…","sub":"…","media":"keyword english","asset":2,"narration":"…","sec":3.5},',
       '  {"t":"stat","prefix":"","value":16.7,"unit":"ms","label":"…","narration":"…","sec":3.5},',
       '  {"t":"compare","title":"…","unit":"Wh","items":[{"label":"ChatGPT","value":2.9},{"label":"Google","value":0.3}],"highlight":0,"narration":"…","sec":5},',
       '  {"t":"bullets","title":"…","items":["maks 6 kata","…"],"narration":"…","sec":5}, {"t":"steps","title":"…","items":["…"],"narration":"…"},',
       '  {"t":"quote","text":"…","author":"…","narration":"…"}, {"t":"countdown","from":3,"label":"…","narration":"…"},',
       '  {"t":"versus","title":"…","left":{"label":"Mitos","items":["…"]},"right":{"label":"Fakta","items":["…"]},"narration":"…"},',
-      '  {"t":"image","title":"…","sub":"…","narration":"…"}, {"t":"price","title":"…","price":"Rp…","old":"…","narration":"…"}, {"t":"cta","title":"…","sub":"akun","narration":"…"} ]}',
+      '  {"t":"image","title":"…","sub":"…","asset":1,"narration":"…"}, {"t":"price","title":"…","price":"Rp…","old":"…","narration":"…"}, {"t":"cta","title":"…","sub":"akun","narration":"…"} ]}',
       'Pakai 4–7 adegan, variasikan template (jangan monoton), sertakan minimal 1 adegan "media", akhiri dengan cta. Angka harus masuk akal; bila tidak yakin sebut "perkiraan".',
     ].filter(Boolean).join('\n');
     return { system, prompt };

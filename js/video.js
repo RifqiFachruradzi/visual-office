@@ -48,9 +48,16 @@
     return v;
   };
   async function renderOnServer(item, sb, o, who) {
-    let imageUrl = null;
-    if (o.image) { const f = await VO.files.upload(o.image, 'foto-produk.' + (/png/.test(o.image.type) ? 'png' : 'jpg')); if (!f.localOnly) imageUrl = f.url; }
-    const r = await fetch('/api/office?render=enqueue', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sb, format: o.format, imageUrl, telegram: o.telegram, itemId: item.id }) });
+    // semua aset Boss (foto/video) diunggah dulu → worker mengunduhnya dari penyimpanan
+    const assets = [];
+    for (const [i, f] of (o.files || []).entries()) {
+      item.stage = 'upload'; VO.app.changed();
+      const ext = (/\.(\w{2,5})$/.exec(f.name || '') || [, /video/.test(f.type) ? 'mp4' : 'jpg'])[1].toLowerCase();
+      const up = await VO.files.upload(f, `aset-${i + 1}.${ext}`);
+      if (up.localOnly) throw new Error('Aset video butuh penyimpanan cloud (Vercel Blob) agar bisa dipakai server video');
+      assets.push({ url: up.url, type: up.type });
+    }
+    const r = await fetch('/api/office?render=enqueue', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sb, format: o.format, assets, telegram: o.telegram, itemId: item.id }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Antrean render: HTTP ' + r.status);
     item.jobId = j.id; item.engine = 'remotion'; VO.app.changed();
@@ -382,7 +389,7 @@
   const waitTask = (task) => new Promise((resolve) => { const iv = setInterval(() => { if (task.status === 'done' || task.status === 'failed') { clearInterval(iv); resolve(task); } }, 800); });
 
   /**
-   * Buat video dari brief. o: { brief, style, format ('9:16'|'16:9'), duration, brand, cta, image (Blob),
+   * Buat video dari brief. o: { brief, style, format ('9:16'|'16:9'), duration, brand, cta, files: [File] (foto/video) atau image (Blob),
    *   divisionId, telegram: true|false|chatId, platforms:[…], schedule (ms) }  → item galeri
    */
   V.create = function (o) { return new Promise((resolve, reject) => { V.queue.push({ o, resolve, reject }); pump(); }); };
@@ -400,6 +407,11 @@
     const who = lead ? lead.id : 'boss';
     o.style = V.STYLES[o.style] ? o.style : B.guessStyle(o.brief);
     o.format = o.format === '16:9' ? '16:9' : '9:16';
+    // aset Boss: banyak file (dialog) atau satu foto (Telegram) → o.files + ringkasan untuk naskah AI
+    if (!Array.isArray(o.files) || !o.files.length) o.files = o.image ? [o.image] : [];
+    o.files = o.files.slice(0, 8);
+    o.assets = o.files.map((f, i) => ({ kind: /^video\//.test(f.type) ? 'video' : 'photo', name: String(f.name || `aset ${i + 1}`).slice(0, 40) }));
+    o.image = o.files.find((f) => /^image\//.test(f.type)) || null; // render di browser hanya memakai satu foto
     const short = String(o.brief).replace(/^(tolong\s+)?(buat(kan)?|bikin(in|kan)?|siapkan|render|produksi)\s+(sebuah\s+)?video\s*/i, '').trim() || o.brief;
     const item = V.addItem(s, { title: (short.charAt(0).toUpperCase() + short.slice(1)).slice(0, 90), status: 'producing', format: o.format, style: o.style, divisionId: div ? div.id : null, platforms: o.platforms || (o.format === '16:9' ? ['youtube'] : ['tiktok', 'instagram', 'youtube']), schedule: o.schedule || null });
     try {

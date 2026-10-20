@@ -137,7 +137,7 @@
     const body = $('dlgBody');
     const fld = document.createElement('div');
     fld.className = 'field';
-    fld.innerHTML = '<label for="f_photo">Foto / gambar (opsional — dipakai template "image", mis. foto produk)</label><input type="file" id="f_photo" accept="image/*">';
+    fld.innerHTML = '<label for="f_photo">Foto / video (opsional, boleh lebih dari satu — mis. beberapa foto produk & klip demo, maks. 8)</label><input type="file" id="f_photo" accept="image/*,video/mp4,video/webm,video/quicktime" multiple><div id="f_photoList" class="muted"></div>';
     body.insertBefore(fld, body.children[7] || null);
     const info = document.createElement('p');
     info.className = 'muted'; info.style.fontSize = '12px';
@@ -146,11 +146,15 @@
       : '⚪ Server video (VPS) tidak aktif — video dirender di browser ini (tanpa narasi, musik & foto stok; paket visual hanya warna).';
     body.insertBefore(info, body.firstChild);
     const photo = $('f_photo');
+    photo.addEventListener('change', () => {
+      const fs = [...photo.files];
+      $('f_photoList').textContent = fs.length ? `${fs.length} file: ` + fs.slice(0, 8).map((f) => `${f.name} (${VO.files.fmtSize(f.size)})`).join(', ') + (fs.length > 8 ? ' — hanya 8 pertama yang dipakai' : '') : '';
+    });
     const v = await fp;
     if (!v) return;
     if (!v.brief) return VO.ui.toast('Isi dulu video tentang apa', 'alert');
     const t = v.schedule ? new Date(v.schedule.replace(' ', 'T')).getTime() : null;
-    G.start({ brief: v.brief, style: v.style, pack: v.pack || undefined, voice: v.voice, music: v.music || undefined, format: v.format, duration: v.duration, brand: v.brand, cta: v.cta, divisionId: v.divisionId || null, image: photo.files[0] || null, schedule: t && isFinite(t) ? t : null, telegram: v.telegram ? true : false });
+    G.start({ brief: v.brief, style: v.style, pack: v.pack || undefined, voice: v.voice, music: v.music || undefined, format: v.format, duration: v.duration, brand: v.brand, cta: v.cta, divisionId: v.divisionId || null, files: [...photo.files].slice(0, 8), schedule: t && isFinite(t) ? t : null, telegram: v.telegram ? true : false });
   };
 
   G.start = function (o) {

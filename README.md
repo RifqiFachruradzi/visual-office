@@ -278,7 +278,7 @@ Supaya video tidak terasa "itu-itu saja", worker di `remotion/` merender naskah 
 | **Narasi suara** | Tiap adegan punya `narration`; dibacakan Gemini TTS (pakai `GEMINI_API_KEY` di Vercel, suara perempuan/laki-laki). Panjang adegan menyesuaikan narasi (dipotong di jeda hening). |
 | **Subtitle** | Kata per kata, kata yang sedang diucapkan disorot (gaya mengikuti paket). |
 | **Musik latar** | Upbeat / tenang / dramatis — disintesis dari kode (bebas royalti), otomatis diredam saat narasi. |
-| **Foto/video stok** | Kata kunci `media` per adegan dicari di **Pixabay** (gratis; isi `PIXABAY_API_KEY` di VPS) atau Pexels (`PEXELS_API_KEY`). Foto produk dari Boss (web/Telegram) dipakai di template `image`. |
+| **Foto/video stok** | Kata kunci `media` per adegan dicari di **Pixabay** (gratis; isi `PIXABAY_API_KEY` di VPS) atau Pexels (`PEXELS_API_KEY`). **Aset dari Boss**: di dialog Buat video bisa unggah beberapa foto & video sekaligus (maks. 8, ≤ 50 MB per file); AI menunjuk nomor aset per adegan dan semua aset pasti tampil (foto dari Telegram juga didukung). |
 
 Alur: Visual Office menyusun naskah → `/api/office?render=enqueue` (antrean di Upstash) → worker di VPS mengambil job, menyiapkan bahan, merender MP4 H.264 + thumbnail → mengunggah ke Vercel Blob → Visual Office memasukkannya ke Galeri & mengirim ke Telegram. Worker yang menghubungi Visual Office, jadi VPS **tidak butuh domain atau port terbuka**. Bila worker mati, video otomatis dirender di browser.
 

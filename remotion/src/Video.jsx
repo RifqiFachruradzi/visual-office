@@ -392,7 +392,8 @@ T.image = ({ sc, imageUrl }) => {
   const L = useL(), f = useCurrentFrame(), { fps } = useVideoConfig(), k = L.k;
   const s = spring({ frame: f, fps, config: { damping: 13 } });
   const z = interpolate(f, [0, sc.sec * fps], [1, 1.08], clamp);
-  const src = imageUrl || sc.mediaSrc;
+  const src = sc.own ? sc.mediaSrc : imageUrl || sc.mediaSrc; // aset Boss bernomor diutamakan
+  const isVid = sc.own && sc.mediaType === 'video';
   const p = L.pack;
   const tilt = p.card === 'glass' ? -3 : p.card === 'sticker' ? 3 : 0;
   const size = L.vert ? L.W - 2 * L.padX - 40 * k : L.H * 0.62;
@@ -405,7 +406,7 @@ T.image = ({ sc, imageUrl }) => {
   }[p.card];
   const pic = (
     <div style={{ width: size, height: L.vert ? size : size, overflow: 'hidden', transform: `rotate(${tilt * s}deg) scale(${0.8 + 0.2 * s})`, opacity: s, background: alpha(L.text, 0.1), flex: 'none', ...frame }}>
-      {src ? <Img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${z})` }} /> : <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${L.accent}, ${L.bg2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 140 * k, color: '#fff' }}>✦</div>}
+      {src && isVid ? <OffthreadVideo src={src} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : src ? <Img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${z})` }} /> : <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${L.accent}, ${L.bg2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 140 * k, color: '#fff' }}>✦</div>}
     </div>
   );
   if (!L.vert) {
