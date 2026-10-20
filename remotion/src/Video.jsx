@@ -48,7 +48,7 @@ function useLook(sb, hasCaptions) {
     bg1: th.bg1 || '#0b1020', bg2: th.bg2 || '#1c2a5a', accent: th.accent || '#ffcc33', text: th.text || '#ffffff',
     onAccent: onColor(th.accent || '#ffcc33'),
     padX: vert ? 56 * k : W * 0.12,
-    top: (vert ? 150 : 100) * k,
+    top: (vert ? 110 : 70) * k, // tanpa progres & brand di atas → konten bisa naik
     bottom: (hasCaptions ? (vert ? 330 : 150) : vert ? 130 : 80) * k,
   };
 }
@@ -488,35 +488,6 @@ function Transition({ children, sec, last, index }) {
   return <AbsoluteFill style={style}>{children}</AbsoluteFill>;
 }
 
-/* ------------------------------------------------------------ bingkai: progres & brand */
-function Chrome({ sb, starts }) {
-  const L = useL(), f = useCurrentFrame(), k = L.k, t = f / FPS;
-  const total = totalSeconds(sb), n = sb.scenes.length;
-  let si = 0; while (si < n - 1 && t >= starts[si + 1]) si++;
-  const p = L.pack;
-  const brandStyle = { fontFamily: `"${p.body}"`, fontWeight: 700, fontSize: 26 * k, color: L.text, opacity: 0.9 };
-  let bar = null;
-  if (p.progress === 'stories') {
-    const gw = (L.W - 60 * k - (n - 1) * 8 * k) / n;
-    bar = sb.scenes.map((x, i) => {
-      const fill = i < si ? 1 : i > si ? 0 : Math.min(1, (t - starts[i]) / x.sec);
-      return <div key={i} style={{ position: 'absolute', left: 30 * k + i * (gw + 8 * k), top: 30 * k, width: gw, height: 7 * k, borderRadius: 4 * k, background: alpha(L.text, 0.25), overflow: 'hidden' }}><div style={{ width: `${fill * 100}%`, height: '100%', background: p.bg === 'grid' ? L.accent : L.text, boxShadow: p.bg === 'grid' ? `0 0 ${8 * k}px ${L.accent}` : 'none' }} /></div>;
-    });
-  } else if (p.progress === 'line') {
-    bar = <div style={{ position: 'absolute', left: 0, top: 0, height: 5 * k, width: `${(t / total) * 100}%`, background: L.accent }} />;
-  } else if (p.progress === 'folio') {
-    bar = <div style={{ position: 'absolute', right: 40 * k, top: 40 * k, fontFamily: '"Playfair Display"', fontWeight: 700, fontStyle: 'italic', fontSize: 28 * k, color: L.text }}>{String(si + 1).padStart(2, '0')} / {String(n).padStart(2, '0')}</div>;
-  } else {
-    bar = <div style={{ position: 'absolute', left: 0, right: 0, top: 34 * k, display: 'flex', justifyContent: 'center', gap: 12 * k }}>{sb.scenes.map((_, i) => <div key={i} style={{ width: (i === si ? 34 : 14) * k, height: 14 * k, borderRadius: 99, background: i <= si ? L.accent : alpha(L.text, 0.25) }} />)}</div>;
-  }
-  const brand = p.progress === 'folio'
-    ? <div style={{ position: 'absolute', left: 50 * k, top: 34 * k, fontFamily: '"Playfair Display"', fontWeight: 800, fontSize: 32 * k, color: L.text, borderBottom: `${3 * k}px solid ${L.text}`, paddingBottom: 4 * k }}>{sb.brand}</div>
-    : <div style={{ position: 'absolute', left: 34 * k, top: (p.progress === 'line' ? 34 : 56) * k, ...brandStyle }}>{p.progress === 'dots' ? '' : '● '}{sb.brand}</div>;
-  // di atas media layar penuh, teks bingkai selalu putih
-  const sc = sb.scenes[si], onMedia = sc && sc.mediaSrc && (sc.t === 'media' || sc.t === 'title');
-  return <AbsoluteFill style={onMedia ? { filter: 'brightness(0) invert(1)' } : {}}>{bar}{p.progress === 'dots' ? <div style={{ position: 'absolute', left: 0, right: 0, top: 66 * k, textAlign: 'center', ...brandStyle }}>{sb.brand}</div> : brand}</AbsoluteFill>;
-}
-
 /* ------------------------------------------------------------ subtitle kata per kata */
 function Captions({ words }) {
   const L = useL(), f = useCurrentFrame(), t = f / FPS, k = L.k, p = L.pack;
@@ -601,7 +572,6 @@ export const Video = ({ sb, imageUrl, voice, words, music }) => {
             </Sequence>
           );
         })}
-        <Chrome sb={sb} starts={starts} />
         {caps ? <Captions words={words} /> : null}
         <Sound voice={voice} music={music} total={total} />
       </AbsoluteFill>

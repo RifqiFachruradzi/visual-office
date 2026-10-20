@@ -305,13 +305,6 @@
     let acc = 0, si = 0;
     while (si < sb.scenes.length - 1 && t >= acc + sb.scenes[si].sec) { acc += sb.scenes[si].sec; si++; }
     const sc = sb.scenes[si], lt = t - acc, out = clamp01((lt - (sc.sec - 0.3)) / 0.3), last = si === sb.scenes.length - 1;
-    const n = sb.scenes.length, gw = (W - 60 * k - (n - 1) * 8 * k) / n;
-    sb.scenes.forEach((x, i) => {
-      ctx.fillStyle = 'rgba(255,255,255,0.25)'; rr(ctx, 30 * k + i * (gw + 8 * k), 30 * k, gw, 7 * k, 4 * k); ctx.fill();
-      const f = i < si ? 1 : i > si ? 0 : clamp01(lt / x.sec);
-      if (f > 0) { ctx.fillStyle = '#fff'; rr(ctx, 30 * k + i * (gw + 8 * k), 30 * k, gw * f, 7 * k, 4 * k); ctx.fill(); }
-    });
-    ctx.font = font(700, 28 * k); ctx.textAlign = 'left'; ctx.fillStyle = P.text; ctx.globalAlpha = 0.9; ctx.fillText('● ' + sb.brand, 34 * k, 86 * k); ctx.globalAlpha = 1;
     ctx.save(); if (!last) { ctx.globalAlpha = 1 - out; ctx.translate(-out * 60 * k, 0); }
     (T[sc.t] || T.title)(F, P, sc, lt, img);
     ctx.restore();
