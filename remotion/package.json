@@ -1,0 +1,20 @@
+{
+  "name": "visual-office-remotion",
+  "private": true,
+  "type": "module",
+  "description": "Render video Visual Office dengan Remotion (dijalankan worker di VPS).",
+  "scripts": {
+    "music": "node scripts/make-music.mjs",
+    "test-render": "node worker.mjs --test",
+    "worker": "node worker.mjs"
+  },
+  "dependencies": {
+    "@fontsource/inter": "5.3.0",
+    "@remotion/bundler": "4.0.537",
+    "@remotion/renderer": "4.0.537",
+    "@vercel/blob": "2.8.2",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.537"
+  }
+}
