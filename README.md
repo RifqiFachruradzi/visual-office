@@ -286,7 +286,7 @@ Supaya video tidak terasa "itu-itu saja", worker di `remotion/` merender naskah 
 | **Narasi suara** | Tiap adegan punya `narration`; dibacakan Gemini TTS (pakai `GEMINI_API_KEY` di Vercel, suara perempuan/laki-laki). Panjang adegan menyesuaikan narasi (dipotong di jeda hening). |
 | **Subtitle** | Kata per kata, kata yang sedang diucapkan disorot (gaya mengikuti paket). |
 | **Musik latar** | Upbeat / tenang / dramatis — disintesis dari kode (bebas royalti), otomatis diredam saat narasi. |
-| **Foto/video stok** | Kata kunci `media` per adegan dicari di **Pexels** (gratis; isi `PEXELS_API_KEY` di VPS). Foto produk dari Boss (web/Telegram) dipakai di template `image`. |
+| **Foto/video stok** | Kata kunci `media` per adegan dicari di **Pixabay** (gratis; isi `PIXABAY_API_KEY` di VPS) atau Pexels (`PEXELS_API_KEY`). Foto produk dari Boss (web/Telegram) dipakai di template `image`. |
 
 Alur: Visual Office menyusun naskah → `/api/office?render=enqueue` (antrean di Upstash) → worker di VPS mengambil job, menyiapkan bahan, merender MP4 H.264 + thumbnail → mengunggah ke Vercel Blob → Visual Office memasukkannya ke Galeri & mengirim ke Telegram. Worker yang menghubungi Visual Office, jadi VPS **tidak butuh domain atau port terbuka**. Bila worker mati, video otomatis dirender di browser.
 
@@ -296,7 +296,7 @@ Alur: Visual Office menyusun naskah → `/api/office?render=enqueue` (antrean di
 curl -fsSL https://raw.githubusercontent.com/RifqiFachruradzi/visual-office/main/remotion/install-vps.sh | sudo bash
 ```
 
-Di akhir, skrip menampilkan `RENDER_WORKER_SECRET` → tambahkan di Vercel (Environment Variables) lalu **Redeploy**. Opsional: daftar kunci gratis di [pexels.com/api](https://www.pexels.com/api/), isi `PEXELS_API_KEY` di `/etc/visual-office-worker.env`, lalu `systemctl restart visual-office-worker`. Log: `journalctl -u visual-office-worker -f`. Jalankan ulang perintah instalasi untuk memperbarui.
+Di akhir, skrip menampilkan `RENDER_WORKER_SECRET` → tambahkan di Vercel (Environment Variables) lalu **Redeploy**. Opsional: daftar gratis di [pixabay.com](https://pixabay.com/accounts/register/), ambil kunci di [pixabay.com/api/docs](https://pixabay.com/api/docs/), isi `PIXABAY_API_KEY` di `/etc/visual-office-worker.env`, lalu `systemctl restart visual-office-worker` (Pexels juga didukung lewat `PEXELS_API_KEY`). Log: `journalctl -u visual-office-worker -f`. Jalankan ulang perintah instalasi untuk memperbarui.
 
 Tes tampilan tanpa server: `cd remotion && npm install && node worker.mjs --test all --still --captions` (gambar per adegan di `remotion/out/`). Lisensi Remotion: gratis untuk perorangan & perusahaan ≤ 3 karyawan.
 

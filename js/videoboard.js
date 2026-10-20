@@ -24,7 +24,7 @@
     countdown: 'Hitung mundur angka (3–10) dengan label, untuk membangun penasaran',
     versus: 'Dua kolom A vs B (mis. mitos vs fakta, sebelum vs sesudah)',
     image: 'Foto produk / gambar dalam bingkai + judul (memakai foto dari Boss bila ada)',
-    media: 'Foto/video LAYAR PENUH sesuai kata kunci "media" (bahasa Inggris, dicari di stok Pexels) + judul di atasnya',
+    media: 'Foto/video LAYAR PENUH sesuai kata kunci "media" (bahasa Inggris, dicari di foto/video stok) + judul di atasnya',
     price: 'Harga / promo besar',
     cta: 'Penutup: ajakan follow / beli / komentar + nama akun',
   };

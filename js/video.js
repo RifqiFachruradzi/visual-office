@@ -6,7 +6,7 @@
  *     (storyboard JSON): tiap adegan memakai satu TEMPLATE + isinya (judul, angka, poin).
  *  3. Render:
  *     · SERVER VIDEO (Remotion di VPS, bila worker aktif): 5 paket visual, narasi suara + subtitle
- *       kata per kata, musik latar, foto/video stok Pexels — lihat remotion/ & lib/render.js
+ *       kata per kata, musik latar, foto/video stok (Pixabay / Pexels) — lihat remotion/ & lib/render.js
  *     · cadangan: template digambar di <canvas> lalu di-encode MP4 di browser (WebCodecs + mp4-muxer)
  *  4. Hasil masuk Galeri (+ jadwal tayang YouTube / TikTok / IG …) dan bisa dikirim ke Telegram.
  *

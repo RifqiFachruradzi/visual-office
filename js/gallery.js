@@ -142,7 +142,7 @@
     const info = document.createElement('p');
     info.className = 'muted'; info.style.fontSize = '12px';
     info.textContent = eng.worker
-      ? `🟢 Server video (VPS) aktif — dirender Remotion: paket visual, ${eng.tts ? 'narasi suara & subtitle, ' : ''}musik${eng.pexels ? ', foto/video stok Pexels' : ''}.`
+      ? `🟢 Server video (VPS) aktif — dirender Remotion: paket visual, ${eng.tts ? 'narasi suara & subtitle, ' : ''}musik${eng.pexels ? ', foto/video stok' : ''}.`
       : '⚪ Server video (VPS) tidak aktif — video dirender di browser ini (tanpa narasi, musik & foto stok; paket visual hanya warna).';
     body.insertBefore(info, body.firstChild);
     const photo = $('f_photo');

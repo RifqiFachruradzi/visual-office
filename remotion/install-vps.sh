@@ -7,7 +7,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/RifqiFachruradzi/visual-office/main/remotion/install-vps.sh | sudo bash
 #
 # Jalankan ulang perintah yang sama untuk memperbarui (pengaturan di /etc/visual-office-worker.env tetap).
-# Opsi env: VO_URL (default https://visual-office.vercel.app), PEXELS_API_KEY.
+# Opsi env: VO_URL (default https://visual-office.vercel.app), PIXABAY_API_KEY / PEXELS_API_KEY.
 # =========================================================================
 set -euo pipefail
 
@@ -48,7 +48,8 @@ if [ ! -f "$ENVF" ]; then
 VO_URL=${VO_URL:-https://visual-office.vercel.app}
 # Sama persis dengan env RENDER_WORKER_SECRET di Vercel
 RENDER_WORKER_SECRET=$SECRET
-# (opsional) foto/video stok gratis: https://www.pexels.com/api/  → isi kuncinya di sini
+# (opsional) foto/video stok gratis: https://pixabay.com/api/docs/ (atau Pexels) → isi kuncinya di sini
+PIXABAY_API_KEY=${PIXABAY_API_KEY:-}
 PEXELS_API_KEY=${PEXELS_API_KEY:-}
 RENDER_CONCURRENCY=1
 EOF
@@ -56,6 +57,8 @@ EOF
   NEW=1
 else
   NEW=0
+  grep -q '^PIXABAY_API_KEY=' "$ENVF" || echo 'PIXABAY_API_KEY=' >> "$ENVF"
+  if [ -n "${PIXABAY_API_KEY:-}" ]; then sed -i "s|^PIXABAY_API_KEY=.*|PIXABAY_API_KEY=$PIXABAY_API_KEY|" "$ENVF"; fi
   if [ -n "${PEXELS_API_KEY:-}" ]; then sed -i "s|^PEXELS_API_KEY=.*|PEXELS_API_KEY=$PEXELS_API_KEY|" "$ENVF"; fi
   echo "pengaturan lama dipakai"
 fi

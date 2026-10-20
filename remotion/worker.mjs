@@ -11,7 +11,8 @@
  * Env (lihat /etc/visual-office-worker.env):
  *   VO_URL                 alamat Visual Office, mis. https://visual-office.vercel.app
  *   RENDER_WORKER_SECRET   rahasia yang sama dengan env di Vercel
- *   PEXELS_API_KEY         (opsional) foto/video stok gratis — https://www.pexels.com/api/
+ *   PIXABAY_API_KEY        (opsional) foto/video stok gratis — https://pixabay.com/api/docs/
+ *   PEXELS_API_KEY         (opsional) alternatif stok — https://www.pexels.com/api/
  *   BROWSER_EXECUTABLE     (opsional) Chrome/Chromium headless; default diunduh Remotion
  *   RENDER_CONCURRENCY     (opsional) tab paralel saat render, default 1 (VPS 2 core / 2 GB)
  *
@@ -33,6 +34,8 @@ const env = (k, d = '') => String(process.env[k] || d).trim();
 const VO_URL = env('VO_URL').replace(/\/+$/, '');
 const SECRET = env('RENDER_WORKER_SECRET');
 const PEXELS = env('PEXELS_API_KEY');
+const PIXABAY = env('PIXABAY_API_KEY');
+const STOCK = !!(PIXABAY || PEXELS); // ada sumber foto/video stok
 const BROWSER = env('BROWSER_EXECUTABLE') || undefined;
 const CONCURRENCY = Math.max(1, Number(env('RENDER_CONCURRENCY', '1')) || 1);
 const PORT = Number(env('ASSET_PORT', '3123'));
@@ -99,17 +102,34 @@ async function pexels(kind, query, orientation, pick) {
     .sort((a, b) => Math.abs(Math.min(a.width, a.height) - 720) - Math.abs(Math.min(b.width, b.height) - 720));
   return files[0] ? { url: files[0].link, credit: 'Video: ' + ((it.user && it.user.name) || 'Pexels') + ' / Pexels' } : null;
 }
+// Pixabay: https://pixabay.com/api/docs/
+async function pixabay(kind, query, orientation, pick) {
+  const base = kind === 'video' ? 'https://pixabay.com/api/videos/' : 'https://pixabay.com/api/';
+  const u = `${base}?key=${encodeURIComponent(PIXABAY)}&q=${encodeURIComponent(String(query).slice(0, 100))}&per_page=10&safesearch=true${kind === 'photo' ? `&image_type=photo&orientation=${orientation === 'portrait' ? 'vertical' : 'horizontal'}` : ''}`;
+  const r = await fetch(u, { signal: AbortSignal.timeout(15000) });
+  if (!r.ok) throw new Error('Pixabay HTTP ' + r.status);
+  let list = (await r.json()).hits || [];
+  if (!list.length) return null;
+  if (kind === 'photo') { const it = list[pick % Math.min(3, list.length)]; return { url: it.largeImageURL || it.webformatURL, credit: 'Foto: ' + it.user + ' / Pixabay' }; }
+  // video: utamakan yang orientasinya cocok, resolusi ±720p
+  const pickFile = (v) => ['medium', 'small', 'large'].map((q) => v.videos && v.videos[q]).find((f) => f && f.url && Math.min(f.width, f.height) >= 540);
+  const fit = list.filter((v) => { const f = pickFile(v); return f && (orientation === 'portrait' ? f.height >= f.width : f.width >= f.height); });
+  if (fit.length) list = fit;
+  const it = list[pick % Math.min(3, list.length)], f = pickFile(it);
+  return f ? { url: f.url, credit: 'Video: ' + it.user + ' / Pixabay' } : null;
+}
+const stock = (kind, q, o, i) => (PIXABAY ? pixabay(kind, q, o, i) : pexels(kind, q, o, i));
 async function prepareMedia(job, dir, sb) {
-  if (!PEXELS) return;
+  if (!STOCK) return;
   const orientation = job.format === '16:9' ? 'landscape' : 'portrait';
   let n = 0;
   for (const [i, sc] of sb.scenes.entries()) {
     const want = sc.t === 'media' || (sc.t === 'title' && i === 0) || (sc.t === 'image' && !job.imageLocal);
     if (!want || !sc.media || n >= 5) continue;
     try {
-      let m = sc.t === 'media' ? await pexels('video', sc.media, orientation, i).catch(() => null) : null;
+      let m = sc.t === 'media' ? await stock('video', sc.media, orientation, i).catch(() => null) : null;
       let type = 'video';
-      if (!m) { m = await pexels('photo', sc.media, orientation, i); type = 'photo'; }
+      if (!m) { m = await stock('photo', sc.media, orientation, i); type = 'photo'; }
       if (!m) continue;
       const name = `m${i}.${type === 'video' ? 'mp4' : 'jpg'}`;
       await download(m.url, path.join(dir, name));
@@ -239,7 +259,7 @@ async function processJob(job, upload) {
   const dir = path.join(WORK, job.id);
   fs.mkdirSync(dir, { recursive: true });
   const t0 = Date.now();
-  const progress = (p, stage) => api('progress', { id: job.id, progress: p, stage, pexels: !!PEXELS }).catch(() => {});
+  const progress = (p, stage) => api('progress', { id: job.id, progress: p, stage, pexels: STOCK }).catch(() => {});
   try {
     const sb = JSON.parse(JSON.stringify(job.sb));
     log(`Job ${job.id}: "${sb.title}" (${job.format}, paket ${sb.pack}, ${sb.scenes.length} adegan)`);
@@ -344,12 +364,12 @@ async function main() {
   if (!VO_URL || !SECRET) { console.error('VO_URL dan RENDER_WORKER_SECRET wajib diisi (lihat /etc/visual-office-worker.env)'); process.exit(1); }
   await startAssetServer();
   await getBundle();
-  log(`Worker render Visual Office ${VERSION} siap → ${VO_URL} (Pexels: ${PEXELS ? 'aktif' : 'tidak'})`);
+  log(`Worker render Visual Office ${VERSION} siap → ${VO_URL} (foto/video stok: ${PIXABAY ? 'Pixabay' : PEXELS ? 'Pexels' : 'tidak'})`);
   let busy = false;
-  setInterval(() => { if (busy) api('beat', { pexels: !!PEXELS, version: VERSION }).catch(() => {}); }, 20000);
+  setInterval(() => { if (busy) api('beat', { pexels: STOCK, version: VERSION }).catch(() => {}); }, 20000);
   for (;;) {
     try {
-      const r = await api('claim', { pexels: !!PEXELS, version: VERSION });
+      const r = await api('claim', { pexels: STOCK, version: VERSION });
       if (r.job) { busy = true; await processJob(r.job, { mode: r.upload, auth: r.auth }); busy = false; continue; }
     } catch (e) { busy = false; log('Tidak bisa menghubungi Visual Office:', e.message); await sleep(15000); }
     await sleep(4000);
