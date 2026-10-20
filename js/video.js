@@ -4,12 +4,13 @@
  *  1. Boss memberi tugas video ke divisi Sosmed (mis. "buat video penjelasan biaya listrik AI").
  *  2. Tim mengerjakan seperti tugas biasa (animasi kantor), lalu AI menyusun NASKAH TERSTRUKTUR
  *     (storyboard JSON): tiap adegan memakai satu TEMPLATE + isinya (judul, angka, poin).
- *  3. Template digambar frame demi frame di <canvas> lalu di-encode jadi MP4 di browser
- *     (WebCodecs + mp4-muxer) — tidak butuh server render / VPS, tidak terbatas 60 dtk Vercel.
+ *  3. Render:
+ *     · SERVER VIDEO (Remotion di VPS, bila worker aktif): 5 paket visual, narasi suara + subtitle
+ *       kata per kata, musik latar, foto/video stok Pexels — lihat remotion/ & lib/render.js
+ *     · cadangan: template digambar di <canvas> lalu di-encode MP4 di browser (WebCodecs + mp4-muxer)
  *  4. Hasil masuk Galeri (+ jadwal tayang YouTube / TikTok / IG …) dan bisa dikirim ke Telegram.
  *
- * Template (VO.video.TEMPLATES): title, stat, compare, bullets, steps, quote, countdown,
- * versus, image, price, cta — dikombinasikan per gaya video (VO.video.STYLES).
+ * Naskah, template & paket visual: js/videoboard.js (dipakai juga oleh server & worker).
  * Format: 9:16 (TikTok/Reels/Shorts) atau 16:9 (YouTube).
  * ========================================================================= */
 (function () {
@@ -19,120 +20,55 @@
   const FONT = "system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
   const SIZES = { '9:16': [720, 1280], '16:9': [1280, 720] };
 
-  V.TEMPLATES = {
-    title: 'Judul pembuka besar + subjudul (hook)',
-    stat: 'Satu angka besar yang menghitung naik + keterangan (mis. "16,7 ms")',
-    compare: 'Grafik batang perbandingan 2–4 nilai dengan satuan (mis. ChatGPT 2,9 Wh vs Google 0,3 Wh)',
-    bullets: 'Daftar 2–5 poin singkat yang muncul satu per satu',
-    steps: 'Langkah bernomor / urutan proses (2–5 langkah)',
-    quote: 'Kutipan + sumber',
-    countdown: 'Hitung mundur angka (3–10) dengan label, untuk membangun penasaran',
-    versus: 'Dua kolom A vs B (mis. mitos vs fakta, sebelum vs sesudah)',
-    image: 'Foto/gambar (foto produk bila ada) + judul',
-    price: 'Harga / promo besar',
-    cta: 'Penutup: ajakan follow / beli / komentar + nama akun',
-  };
-  V.STYLES = {
-    explainer: { label: 'Penjelasan / fakta (explainer)', hint: 'title → stat/compare → bullets → quote/versus → cta' },
-    tips: { label: 'Tips / tutorial', hint: 'title → steps → bullets → cta' },
-    iklan: { label: 'Iklan produk', hint: 'title (hook) → image → bullets → price → cta' },
-    berita: { label: 'Berita singkat', hint: 'title → stat → bullets → quote → cta' },
-    perbandingan: { label: 'Perbandingan', hint: 'title → compare → versus → bullets → cta' },
-    teaser: { label: 'Teaser / pengumuman', hint: 'countdown → title → bullets → cta' },
-  };
-  const THEMES = [
-    { bg1: '#0b1020', bg2: '#1c2a5a', accent: '#ffcc33', text: '#ffffff' },
-    { bg1: '#140b24', bg2: '#4a1f7a', accent: '#ff5fa2', text: '#ffffff' },
-    { bg1: '#06231b', bg2: '#145a43', accent: '#7dffb2', text: '#ffffff' },
-    { bg1: '#2a1206', bg2: '#8a3b12', accent: '#ffd479', text: '#ffffff' },
-    { bg1: '#06121f', bg2: '#0f4c75', accent: '#3fe0ff', text: '#ffffff' },
-  ];
-
-  V.isRequest = (t) => /\b(video|reels?|shorts|tiktok)\b/i.test(String(t || '')) && /\b(buat|buatkan|bikin|bikinin|render|produksi|siapkan|susun)\b/i.test(String(t || ''));
+  const B = VO.videoBoard; // naskah bersama (js/videoboard.js): template, gaya, paket visual, prompt AI
+  V.TEMPLATES = B.TEMPLATES;
+  V.STYLES = B.STYLES;
+  V.PACKS = B.PACKS;
+  V.isRequest = B.isRequest;
   V.supported = () => typeof VideoEncoder !== 'undefined' || (typeof MediaRecorder !== 'undefined' && !!HTMLCanvasElement.prototype.captureStream);
-
-  /* ------------------------------------------------------------ naskah (storyboard) */
-  const str = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
-  const hex = (c, d) => (/^#[0-9a-f]{6}$/i.test(String(c || '')) ? c : d);
-  const num = (v) => { const x = typeof v === 'number' ? v : parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')); return isFinite(x) ? x : 0; };
-  const DEF_SEC = { title: 3, stat: 3.5, compare: 5, bullets: 5, steps: 5, quote: 4, countdown: 3.5, versus: 5, image: 3.5, price: 3.5, cta: 3.5 };
-
-  function cleanScene(x) {
-    const t = x && V.TEMPLATES[x.t || x.type || x.kind] ? (x.t || x.type || x.kind) : null;
-    if (!t) return null;
-    const list = (a, n, m) => (Array.isArray(a) ? a.map((i) => str(i, m)).filter(Boolean).slice(0, n) : []);
-    const sc = { t, sec: Math.max(2, Math.min(9, Number(x.sec) || DEF_SEC[t])) };
-    sc.title = str(x.title || x.headline, 80); sc.sub = str(x.sub, 110); sc.kicker = str(x.kicker, 30);
-    if (t === 'stat') { sc.value = num(x.value); sc.unit = str(x.unit, 12); sc.prefix = str(x.prefix, 6); sc.label = str(x.label || x.sub, 90); sc.decimals = Math.max(0, Math.min(2, Number(x.decimals) || ((String(x.value).match(/[.,](\d+)$/) || [, ''])[1].length))); }
-    if (t === 'compare') { sc.unit = str(x.unit, 10); sc.items = (Array.isArray(x.items) ? x.items : []).slice(0, 4).map((i) => ({ label: str(i.label, 22), value: num(i.value), note: str(i.note, 26) })).filter((i) => i.label); sc.highlight = Number(x.highlight) || 0; if (sc.items.length < 2) return null; }
-    if (t === 'bullets' || t === 'steps') { sc.items = list(x.items || x.bullets, 5, 60); if (!sc.items.length) return null; }
-    if (t === 'quote') { sc.text = str(x.text || x.title, 180); sc.author = str(x.author, 50); if (!sc.text) return null; }
-    if (t === 'countdown') { sc.from = Math.max(3, Math.min(10, Number(x.from) || 3)); sc.label = str(x.label || x.title, 60); sc.sec = Math.max(sc.sec, sc.from * 0.7 + 0.6); }
-    if (t === 'versus') { const side = (o) => ({ label: str(o && o.label, 20), items: list(o && o.items, 4, 40) }); sc.left = side(x.left); sc.right = side(x.right); if (!sc.left.items.length || !sc.right.items.length) return null; }
-    if (t === 'price') { sc.price = str(x.price, 24) || 'Promo!'; sc.old = str(x.old || x.oldPrice, 24); }
-    return sc;
-  }
-
-  function normalize(sb, o) {
-    const fb = fallbackBoard(o);
-    if (!sb || !Array.isArray(sb.scenes)) return fb;
-    let scenes = sb.scenes.map(cleanScene).filter(Boolean).slice(0, 9);
-    if (scenes.length < 2) return fb;
-    if (scenes[scenes.length - 1].t !== 'cta') scenes.push(cleanScene({ t: 'cta', title: o.cta || 'Follow untuk info berikutnya!', sub: o.brand || '' }));
-    const total = Math.max(10, Math.min(60, Number(o.duration) || 25));
-    const sum = scenes.reduce((a, x) => a + x.sec, 0);
-    scenes = scenes.map((x) => ({ ...x, sec: Math.max(x.t === 'countdown' ? x.sec : 2, Math.round(((x.sec * total) / sum) * 10) / 10) }));
-    const th = sb.theme || sb.palette || {};
-    return {
-      title: str(sb.title, 90) || fb.title, brand: str(sb.brand, 30) || fb.brand,
-      theme: { bg1: hex(th.bg1, fb.theme.bg1), bg2: hex(th.bg2, fb.theme.bg2), accent: hex(th.accent, fb.theme.accent), text: hex(th.text, '#ffffff') },
-      caption: str(sb.caption, 900) || fb.caption, scenes,
-    };
-  }
-
-  // Tanpa AI (mode simulasi / gagal): naskah dari brief memakai template gaya terpilih
-  function fallbackBoard(o) {
-    const topic = str(String(o.brief || o.topic || 'Konten baru').replace(/^(tolong\s+)?(buat(kan)?|bikin(in)?|siapkan)\s+(sebuah\s+)?(video\s+)?(penjelasan|iklan|tentang|soal)?\s*/i, ''), 70) || 'Konten baru';
-    const brand = o.brand || (VO.app && VO.app.state.company.name) || 'Visual Office';
-    const scenes = [{ t: 'title', kicker: 'FAKTA', title: topic, sub: 'Simak sampai habis 👇' }];
-    if (o.style === 'iklan') scenes.push({ t: 'image', title: topic }, { t: 'bullets', title: 'Kenapa harus ini?', items: ['Kualitas terjamin', 'Harga bersahabat', 'Siap kirim hari ini'] }, { t: 'price', title: 'Harga spesial', price: o.price || 'Promo!' });
-    else if (o.style === 'tips') scenes.push({ t: 'steps', title: 'Caranya', items: ['Pahami masalahnya', 'Coba langkah kecil', 'Evaluasi hasilnya'] });
-    else if (o.style === 'teaser') scenes.unshift({ t: 'countdown', from: 3, label: 'Sebentar lagi…' });
-    else scenes.push({ t: 'compare', title: 'Perbandingan', unit: '', items: [{ label: 'Sebelum', value: 3 }, { label: 'Sesudah', value: 9 }], highlight: 1 }, { t: 'bullets', title: 'Poin penting', items: ['Ringkas & jelas', 'Berbasis data', 'Mudah dipraktikkan'] });
-    scenes.push({ t: 'cta', title: o.cta || 'Follow untuk info berikutnya!', sub: brand });
-    return { title: topic, brand, theme: THEMES[Math.floor(Math.random() * THEMES.length)], caption: `${topic} #fyp #edukasi`, scenes: scenes.map(cleanScene).filter(Boolean) };
-  }
 
   /** Naskah terstruktur dari AI (bila Mode AI aktif). context = laporan tim (riset/naskah kasar). */
   V.storyboard = async function (o, context) {
     const s = VO.app.state;
-    if (!(s.settings.aiMode && VO.ai.available)) return normalize(null, o);
-    const style = V.STYLES[o.style] || V.STYLES.explainer;
-    const system = 'Kamu sutradara video pendek media sosial (TikTok/Reels/Shorts/YouTube) yang jago menulis naskah bahasa Indonesia santai & akurat. Balas HANYA JSON valid, tanpa penjelasan, tanpa ```.';
-    const prompt = [
-      `Buat storyboard video ${o.format === '16:9' ? 'horizontal 16:9 (YouTube)' : 'vertikal 9:16'} ±${Number(o.duration) || 25} detik, gaya: ${style.label} (urutan disarankan: ${style.hint}).`,
-      `Brief dari Boss: ${o.brief}`,
-      o.brand ? `Nama akun / brand: ${o.brand}` : '', o.cta ? `Ajakan penutup: ${o.cta}` : '', o.image ? 'Ada foto yang bisa dipakai di template "image".' : '',
-      context ? `Hasil riset & naskah kasar dari tim:\n${String(context).slice(0, 3500)}` : '',
-      'Template yang tersedia (field "t"):',
-      ...Object.entries(V.TEMPLATES).map(([k, d]) => `- ${k}: ${d}`),
-      'Format JSON:',
-      '{"title":"judul video","brand":"…","theme":{"bg1":"#hex gelap","bg2":"#hex","accent":"#hex cerah","text":"#ffffff"},"caption":"caption + 3-5 hashtag",',
-      ' "scenes":[ {"t":"title","kicker":"1-2 kata","title":"maks 8 kata","sub":"…","sec":3},',
-      '  {"t":"stat","prefix":"","value":16.7,"unit":"ms","label":"…","sec":3.5},',
-      '  {"t":"compare","title":"…","unit":"Wh","items":[{"label":"ChatGPT","value":2.9},{"label":"Google","value":0.3}],"highlight":0,"sec":5},',
-      '  {"t":"bullets","title":"…","items":["maks 6 kata","…"],"sec":5}, {"t":"steps","title":"…","items":["…"]},',
-      '  {"t":"quote","text":"…","author":"…"}, {"t":"countdown","from":3,"label":"…"},',
-      '  {"t":"versus","title":"…","left":{"label":"Mitos","items":["…"]},"right":{"label":"Fakta","items":["…"]}},',
-      '  {"t":"image","title":"…","sub":"…"}, {"t":"price","title":"…","price":"Rp…","old":"…"}, {"t":"cta","title":"…","sub":"akun"} ]}',
-      'Pakai 4–7 adegan, akhiri dengan cta. Angka harus masuk akal & beri sumber/konteks di "sub"/"label" bila ada. Jangan mengarang data spesifik yang tidak kamu yakini — pakai perkiraan yang wajar dan sebut "perkiraan".',
-    ].filter(Boolean).join('\n');
-    try {
-      const out = await VO.ai.run({ model: s.boss.model, system, prompt, long: true });
-      const m = /\{[\s\S]*\}/.exec(out);
-      return normalize(m ? JSON.parse(m[0]) : null, o);
-    } catch (e) { return normalize(null, o); }
+    o = { brand: s.company.name || 'Visual Office', ...o };
+    if (!(s.settings.aiMode && VO.ai.available)) return B.fallback(o);
+    const { system, prompt } = B.prompt(o, context);
+    try { return B.parse(await VO.ai.run({ model: s.boss.model, system, prompt, long: true }), o); }
+    catch (e) { return B.fallback(o); }
   };
+
+  /* ------------------------------------------------------------ server video (Remotion di VPS) */
+  // status worker: { configured, worker (aktif?), pexels, tts } — disimpan sebentar agar tidak dipanggil terus
+  let engineCache = null;
+  V.engine = async function (fresh) {
+    if (!fresh && engineCache && Date.now() - engineCache.t < 20000) return engineCache.v;
+    let v = { worker: false };
+    try { const r = await fetch('/api/office?render=status', { cache: 'no-store' }); if (r.ok) v = await r.json(); } catch (e) { /* offline */ }
+    engineCache = { t: Date.now(), v };
+    return v;
+  };
+  async function renderOnServer(item, sb, o, who) {
+    let imageUrl = null;
+    if (o.image) { const f = await VO.files.upload(o.image, 'foto-produk.' + (/png/.test(o.image.type) ? 'png' : 'jpg')); if (!f.localOnly) imageUrl = f.url; }
+    const r = await fetch('/api/office?render=enqueue', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sb, format: o.format, imageUrl, telegram: o.telegram, itemId: item.id }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Antrean render: HTTP ' + r.status);
+    item.jobId = j.id; item.engine = 'remotion'; VO.app.changed();
+    const STAGE = { antre: 'antre', mulai: 'render', media: 'media', narasi: 'narasi', render: 'render', upload: 'upload' };
+    let lastP = -1;
+    for (;;) {
+      await new Promise((res) => setTimeout(res, 3000));
+      let job;
+      try { const q = await fetch('/api/office?render=job&id=' + encodeURIComponent(j.id), { cache: 'no-store' }); job = await q.json(); if (!q.ok) throw new Error(job.error); }
+      catch (e) { continue; } // jaringan putus sesaat
+      if (job.status === 'failed') throw new Error(job.error || 'Render di server gagal');
+      item.progress = job.progress || 0; item.stage = STAGE[job.stage] || 'render';
+      const p = Math.round(item.progress * 100);
+      if (job.status === 'rendering' && p >= lastP + 25) { lastP = p; VO.sim.say(who, `🎬 Server video: ${item.stage} ${p}%`, 3); }
+      VO.app.changed();
+      if (job.status === 'done') return job;
+    }
+  }
 
   /* ------------------------------------------------------------ gambar */
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
@@ -270,6 +206,7 @@
     });
   };
   T.bullets = listT(false);
+  T.media = (F, P, sc, lt) => T.title(F, P, sc, lt); // foto/video stok hanya di server video
   T.steps = listT(true);
   T.quote = (F, P, sc, lt) => {
     const { ctx, k, cx, H } = F;
@@ -468,7 +405,7 @@
     const div = V.creativeDivision(s, o.divisionId);
     const lead = div && (VO.director(s, div.id) || s.agents.find((a) => a.divisionId === div.id));
     const who = lead ? lead.id : 'boss';
-    o.style = V.STYLES[o.style] ? o.style : /iklan|promo|jual|produk/i.test(o.brief) ? 'iklan' : /tips|cara|tutorial|langkah/i.test(o.brief) ? 'tips' : /vs|banding/i.test(o.brief) ? 'perbandingan' : 'explainer';
+    o.style = V.STYLES[o.style] ? o.style : B.guessStyle(o.brief);
     o.format = o.format === '16:9' ? '16:9' : '9:16';
     const short = String(o.brief).replace(/^(tolong\s+)?(buat(kan)?|bikin(in|kan)?|siapkan|render|produksi)\s+(sebuah\s+)?video\s*/i, '').trim() || o.brief;
     const item = V.addItem(s, { title: (short.charAt(0).toUpperCase() + short.slice(1)).slice(0, 90), status: 'producing', format: o.format, style: o.style, divisionId: div ? div.id : null, platforms: o.platforms || (o.format === '16:9' ? ['youtube'] : ['tiktok', 'instagram', 'youtube']), schedule: o.schedule || null });
@@ -482,27 +419,40 @@
       VO.sim.say(who, '🎬 Menyusun naskah per adegan…', 4); item.stage = 'naskah'; VO.app.changed();
       const sb = await V.storyboard(o, task.status === 'done' ? task.result : '');
       item.title = sb.title; item.storyboard = sb; item.caption = sb.caption; item.stage = 'render';
-      // 3) render
-      let lastP = -1;
-      const r = await V.render(sb, { format: o.format, image: o.image, onProgress: (f) => {
-        item.progress = f; const p = Math.round(f * 100);
-        if (p >= lastP + 25) { lastP = p; VO.sim.say(who, `🎬 Render video ${p}%`, 3); }
-      } });
-      // 4) simpan: video + thumbnail, dokumen naskah, galeri
-      const slug = sb.title.replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 50) || 'video';
-      const ext = /mp4/.test(r.blob.type) ? 'mp4' : 'webm';
-      item.stage = 'upload'; VO.app.changed();
-      item.file = await VO.files.upload(r.blob, `${slug}.${ext}`);
-      item.thumb = await VO.files.upload(r.thumb, `${slug}-thumb.jpg`).catch(() => null);
-      item.duration = Math.round(V.duration(sb)); item.codec = r.codec;
+      // 3) render: server video (Remotion di VPS: narasi, subtitle, musik, foto stok) bila aktif, selain itu di browser
+      const eng = await V.engine(true);
+      let sentByServer = false, size = 0;
+      if (eng.worker) {
+        VO.sim.say(who, '🎬 Naskah dikirim ke server video…', 4);
+        const job = await renderOnServer(item, sb, o, who);
+        item.file = job.file; item.thumb = job.thumb; item.duration = job.duration; item.codec = 'h264';
+        if (job.sb) { item.storyboard = job.sb; item.narrated = !!job.sb.narrated; }
+        sentByServer = o.telegram != null && o.telegram !== false; size = job.file.size;
+      } else {
+        if (!V.supported()) throw new Error('Server video (VPS) sedang tidak aktif dan browser ini belum bisa membuat video — pakai Chrome/Edge terbaru.');
+        let lastP = -1;
+        const r = await V.render(sb, { format: o.format, image: o.image, onProgress: (f) => {
+          item.progress = f; const p = Math.round(f * 100);
+          if (p >= lastP + 25) { lastP = p; VO.sim.say(who, `🎬 Render video ${p}%`, 3); }
+        } });
+        // simpan: video + thumbnail
+        const slug = sb.title.replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 50) || 'video';
+        const ext = /mp4/.test(r.blob.type) ? 'mp4' : 'webm';
+        item.stage = 'upload'; VO.app.changed();
+        item.file = await VO.files.upload(r.blob, `${slug}.${ext}`);
+        item.thumb = await VO.files.upload(r.thumb, `${slug}-thumb.jpg`).catch(() => null);
+        item.duration = Math.round(V.duration(sb)); item.codec = r.codec; item.engine = 'browser'; size = r.blob.size;
+      }
+      const fin = item.storyboard || sb;
+      item.pack = fin.pack;
       item.status = item.schedule ? 'scheduled' : 'draft'; item.stage = ''; item.progress = 1;
-      const script = sb.scenes.map((x, i) => `${i + 1}. **${x.t}** (${x.sec} dtk) — ${x.title || x.text || x.label || ''}${x.items && x.items.map ? ' · ' + x.items.map((q) => (typeof q === 'string' ? q : `${q.label} ${q.value}`)).join(', ') : ''}${x.value != null && x.t === 'stat' ? ' · ' + x.value + ' ' + (x.unit || '') : ''}`).join('\n');
+      const script = fin.scenes.map((x, i) => `${i + 1}. **${x.t}** (${x.sec} dtk) — ${x.title || x.text || x.label || ''}${x.items && x.items.map ? ' · ' + x.items.map((q) => (typeof q === 'string' ? q : `${q.label} ${q.value}`)).join(', ') : ''}${x.value != null && x.t === 'stat' ? ' · ' + x.value + ' ' + (x.unit || '') : ''}${x.narration ? `\n   _“${x.narration}”_` : ''}`).join('\n');
       const doc = VO.addDoc(s, { kind: 'work', title: 'Video: ' + sb.title, author: div ? 'Divisi ' + div.name : 'Tim Kreatif', taskId: task.id, content: `## ${sb.title}\n\n**Caption:** ${sb.caption}\n\n### Naskah per adegan\n${script}` });
       doc.file = item.file; item.docId = doc.id;
       VO.sim.say(who, '🎬 Video siap — cek Galeri!', 4, 'check');
-      VO.log(s, `Video "${sb.title}" selesai (${item.duration} dtk, ${VO.files.fmtSize(r.blob.size)}) — masuk Galeri`, 'check');
+      VO.log(s, `Video "${sb.title}" selesai (${item.duration} dtk, ${VO.files.fmtSize(size)}${item.engine === 'remotion' ? ', server video' : ''}) — masuk Galeri`, 'check');
       VO.app.changed();
-      if (o.telegram != null && o.telegram !== false) {
+      if (o.telegram != null && o.telegram !== false && !sentByServer) {
         try { await VO.files.sendTelegram(item.file, `🎬 ${sb.title}\n\n${sb.caption}`, o.telegram === true ? undefined : o.telegram); }
         catch (e) { VO.ui.toast('Telegram: ' + e.message, 'alert'); }
       }

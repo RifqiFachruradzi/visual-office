@@ -269,10 +269,36 @@ Video dibuat **lewat kode**, bukan diedit manual — seperti video explainer "Ch
 1. **Beri tugas video**: tulis di *Perintah Boss* (mis. `buat video penjelasan biaya listrik AI`), klik **🎬 Buat video**, atau dari Telegram `/video …` / `@Sosmed buat video …` (bisa kirim foto + caption `/video …`).
 2. **Tim mengerjakan**: divisi Sosmed/Marketing/Konten (dicari otomatis dari nama divisi/departemen) briefing, riset & menulis naskah kasar seperti tugas biasa (animasi kantor).
 3. **Naskah terstruktur**: AI menyusun storyboard JSON — tiap adegan memakai satu **template** + isinya.
-4. **Render MP4 di browser** (WebCodecs + mp4-muxer): tidak butuh VPS/server render dan tidak terbatas 60 detik Vercel. Chrome/Edge memakai H.264 (MP4 yang diterima TikTok/IG/YouTube/Telegram); browser tanpa H.264 memakai cadangan VP9.
+4. **Render MP4**:
+   - **Server video (Remotion di VPS)**, bila worker aktif: 5 paket visual, narasi suara + subtitle kata per kata, musik latar, dan foto/video stok — lihat bagian berikut. Bisa juga saat Visual Office tidak dibuka (permintaan dari Telegram).
+   - **Cadangan di browser** (WebCodecs + mp4-muxer): Chrome/Edge memakai H.264, browser tanpa H.264 memakai VP9. Tanpa narasi/musik/foto stok, dan paket visual hanya mengubah warna.
 5. **Galeri** (tab 🎬 Galeri): putar, unduh, salin caption, kirim ke Telegram, atur **jadwal tayang** & platform (YouTube, TikTok, Instagram, Facebook, Threads). Saat jadwal tiba, Visual Office mengingatkan di aplikasi & Telegram (lengkap dengan file videonya); unggahan ke platform dilakukan manual.
 
-**Template** (`js/video.js`): `title` (judul pembuka), `stat` (angka besar menghitung naik), `compare` (grafik batang perbandingan + badge "≈ 9,7×"), `bullets`, `steps`, `quote`, `countdown`, `versus` (mitos vs fakta), `image` (foto produk), `price`, `cta`. **Gaya**: explainer, tips, iklan, berita, perbandingan, teaser. **Format**: 9:16 (TikTok/Reels/Shorts) & 16:9 (YouTube). Tanpa Mode AI, naskah memakai templat bawaan dari brief.
+**Template** (`js/videoboard.js`, dipakai browser, server & worker): `title` (judul pembuka), `media` (foto/video stok layar penuh), `stat` (angka besar menghitung naik), `compare` (grafik batang + badge "≈ 9,7×"), `bullets`, `steps`, `quote`, `countdown`, `versus` (mitos vs fakta), `image` (foto produk), `price`, `cta`. **Gaya**: explainer, tips, iklan, berita, perbandingan, teaser. **Format**: 9:16 (TikTok/Reels/Shorts) & 16:9 (YouTube). Tanpa Mode AI, naskah memakai templat bawaan dari brief.
+
+### Server video: Remotion di VPS (paket visual, narasi, subtitle, musik, foto stok)
+
+Supaya video tidak terasa "itu-itu saja", worker di `remotion/` merender naskah yang sama dengan:
+
+| | |
+|---|---|
+| **Paket visual** (dipilih AI sesuai topik, atau dipilih manual) | **Bold** (gradien, teks memantul), **Minimalis** (bersih, naik halus), **Neon** (grid neon, efek glitch), **Editorial** (serif majalah, blok warna, wipe), **Playful** (pastel, stiker, confetti). Tiap paket punya font, latar, animasi teks, kartu, transisi, progres & gaya subtitle sendiri. |
+| **Narasi suara** | Tiap adegan punya `narration`; dibacakan Gemini TTS (pakai `GEMINI_API_KEY` di Vercel, suara perempuan/laki-laki). Panjang adegan menyesuaikan narasi (dipotong di jeda hening). |
+| **Subtitle** | Kata per kata, kata yang sedang diucapkan disorot (gaya mengikuti paket). |
+| **Musik latar** | Upbeat / tenang / dramatis — disintesis dari kode (bebas royalti), otomatis diredam saat narasi. |
+| **Foto/video stok** | Kata kunci `media` per adegan dicari di **Pexels** (gratis; isi `PEXELS_API_KEY` di VPS). Foto produk dari Boss (web/Telegram) dipakai di template `image`. |
+
+Alur: Visual Office menyusun naskah → `/api/office?render=enqueue` (antrean di Upstash) → worker di VPS mengambil job, menyiapkan bahan, merender MP4 H.264 + thumbnail → mengunggah ke Vercel Blob → Visual Office memasukkannya ke Galeri & mengirim ke Telegram. Worker yang menghubungi Visual Office, jadi VPS **tidak butuh domain atau port terbuka**. Bila worker mati, video otomatis dirender di browser.
+
+**Pasang di VPS** (Rocky/Alma 8–9 atau Debian/Ubuntu; 2 core / 2 GB cukup — swap 3 GB dibuat otomatis). Worker berjalan di kontainer Podman (compositor Remotion butuh glibc baru), terpisah dari layanan lain seperti 9router:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/RifqiFachruradzi/visual-office/main/remotion/install-vps.sh | sudo bash
+```
+
+Di akhir, skrip menampilkan `RENDER_WORKER_SECRET` → tambahkan di Vercel (Environment Variables) lalu **Redeploy**. Opsional: daftar kunci gratis di [pexels.com/api](https://www.pexels.com/api/), isi `PEXELS_API_KEY` di `/etc/visual-office-worker.env`, lalu `systemctl restart visual-office-worker`. Log: `journalctl -u visual-office-worker -f`. Jalankan ulang perintah instalasi untuk memperbarui.
+
+Tes tampilan tanpa server: `cd remotion && npm install && node worker.mjs --test all --still --captions` (gambar per adegan di `remotion/out/`). Lisensi Remotion: gratis untuk perorangan & perusahaan ≤ 3 karyawan.
 
 ### Penyimpanan file (video, PDF, gambar) — Vercel Blob
 

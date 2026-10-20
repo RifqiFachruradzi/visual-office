@@ -4,10 +4,9 @@ import { Video, FPS, SIZES, totalSeconds } from './Video.jsx';
 // Contoh props untuk Remotion Studio / tes render
 const SAMPLE = {
   format: '9:16',
-  music: 'upbeat',
-  imageUrl: null,
+  imageUrl: null, voice: null, words: [], music: null,
   sb: {
-    title: 'Kenapa AI Boros Listrik?', brand: '@kantorai',
+    title: 'Kenapa AI Boros Listrik?', brand: '@kantorai', pack: 'bold', music: 'upbeat', voice: 'none',
     theme: { bg1: '#0b1020', bg2: '#1c2a5a', accent: '#ffcc33', text: '#ffffff' },
     scenes: [
       { t: 'title', kicker: 'FAKTA AI', title: 'Satu pertanyaan ke ChatGPT = 10× listrik Google?', sub: 'Asal angkanya di sini 👇', sec: 3 },

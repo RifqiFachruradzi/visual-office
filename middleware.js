@@ -8,6 +8,8 @@ const next = () => new Response(null, { headers: { 'x-middleware-next': '1' } })
 
 export default async function middleware(request) {
   const url = new URL(request.url);
+  // worker render di VPS (tanpa cookie): rahasianya diperiksa di dalam function /api/office
+  if (url.pathname === '/api/office' && request.headers.get('x-render-secret')) return next();
   const g = await gate(url.pathname, request.headers.get('cookie'));
   if (g.ok) return next();
   if (g.api) {

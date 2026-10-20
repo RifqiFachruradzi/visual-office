@@ -20,7 +20,7 @@
   function card(v) {
     const vert = v.format !== '16:9';
     const thumb = v.thumb && v.thumb.url ? `<img src="${esc(v.thumb.url)}" alt="" loading="lazy">` : `<div class="gph">${v.status === 'producing' ? '🎬' : '🎞️'}</div>`;
-    const stage = v.status === 'producing' ? `<div class="gbar"><i style="width:${Math.round((v.progress || 0) * 100)}%"></i></div><div class="gst">${esc({ naskah: 'Menulis naskah…', render: 'Merender ' + Math.round((v.progress || 0) * 100) + '%', upload: 'Menyimpan…' }[v.stage] || 'Tim sedang riset…')}</div>` : '';
+    const stage = v.status === 'producing' ? `<div class="gbar"><i style="width:${Math.round((v.progress || 0) * 100)}%"></i></div><div class="gst">${esc({ naskah: 'Menulis naskah…', antre: 'Antre di server video…', media: 'Mencari foto/video stok…', narasi: 'Merekam narasi…', render: 'Merender ' + Math.round((v.progress || 0) * 100) + '%', upload: 'Menyimpan…' }[v.stage] || 'Tim sedang riset…')}</div>` : '';
     const sched = v.schedule ? `<span>⏰ ${esc(when(v.schedule))}</span>` : '';
     return `<div class="gcard ${vert ? 'v' : 'h'} st-${v.status}" data-vid="${v.id}">
       <div class="gthumb">${thumb}${v.duration ? `<span class="gdur">${v.duration} dtk</span>` : ''}</div>
@@ -48,7 +48,7 @@
     const plats = Object.entries(PLATFORMS).map(([k, l]) => `<label class="gplat"><input type="checkbox" data-plat="${k}" ${(v.platforms || []).includes(k) ? 'checked' : ''}> ${l}</label>`).join('');
     $('resultTitle').textContent = v.title;
     $('resultBody').innerHTML = `<div class="gdetail">${player}<div class="ginfo">
-      <div style="color:var(--muted)">${ST[v.status] || v.status} · ${v.format || '9:16'} · ${v.duration || '?'} dtk${v.file ? ' · ' + VO.files.fmtSize(v.file.size) : ''}${v.codec === 'vp9' ? ' · VP9 (browser tanpa H.264)' : ''}</div>
+      <div style="color:var(--muted)">${ST[v.status] || v.status} · ${v.format || '9:16'} · ${v.duration || '?'} dtk${v.file ? ' · ' + VO.files.fmtSize(v.file.size) : ''}${v.codec === 'vp9' ? ' · VP9 (browser tanpa H.264)' : ''}${v.pack && VO.videoBoard.PACKS[v.pack] ? ' · paket ' + v.pack : ''}${v.engine === 'remotion' ? ' · server video' + (v.narrated ? ' + narasi' : '') : ''}</div>
       ${v.file && v.file.localOnly ? '<div class="gwarn">File hanya ada di browser ini (penyimpanan cloud belum aktif) — unduh sebelum menutup halaman.</div>' : ''}
       <div class="btns" style="margin:8px 0">
         ${v.file ? `<button type="button" class="small primary" data-g="dl">${VO.icon('download')} Unduh</button><button type="button" class="small" data-g="tg">${VO.icon('send')} Kirim ke Telegram</button>` : ''}
@@ -115,12 +115,17 @@
 
   /* ------------------------------------------------------------ dialog buat video */
   G.openCreate = async function (pre = {}) {
-    if (!VO.video.supported()) return VO.ui.toast('Browser ini belum bisa membuat video — pakai Chrome/Edge terbaru.', 'alert');
+    const eng = await VO.video.engine(true);
+    if (!eng.worker && !VO.video.supported()) return VO.ui.toast('Server video (VPS) tidak aktif dan browser ini belum bisa membuat video — pakai Chrome/Edge terbaru.', 'alert');
     const s = S();
+    const B = VO.videoBoard;
     const cdiv = VO.video.creativeDivision(s);
     const fp = VO.ui.form('Buat Video (programmatic)', [
       { key: 'brief', label: 'Mau video tentang apa?', type: 'textarea', value: pre.brief || '', placeholder: 'mis. Jelaskan kenapa 1 pertanyaan ke ChatGPT butuh listrik ±10× pencarian Google' },
       { key: 'style', label: 'Gaya video', type: 'select', value: pre.style || 'explainer', options: Object.entries(VO.video.STYLES).map(([k, x]) => ({ value: k, label: x.label })) },
+      { key: 'pack', label: 'Paket visual', type: 'select', value: pre.pack || '', options: [{ value: '', label: 'Otomatis — dipilih AI sesuai topik' }, ...Object.entries(B.PACKS).map(([k, x]) => ({ value: k, label: x.label }))] },
+      { key: 'voice', label: 'Narasi suara + subtitle', type: 'select', value: 'female', options: Object.entries(B.VOICES).map(([k, x]) => ({ value: k, label: x })) },
+      { key: 'music', label: 'Musik latar', type: 'select', value: '', options: [{ value: '', label: 'Otomatis — sesuai suasana' }, ...Object.entries(B.MUSIC).map(([k, x]) => ({ value: k, label: x }))] },
       { key: 'format', label: 'Format', type: 'select', value: '9:16', options: [{ value: '9:16', label: '9:16 vertikal — TikTok, Reels, Shorts' }, { value: '16:9', label: '16:9 horizontal — YouTube' }] },
       { key: 'duration', label: 'Durasi', type: 'select', value: '25', options: ['15', '25', '35', '50'].map((d) => ({ value: d, label: d + ' detik' })) },
       { key: 'brand', label: 'Nama akun / brand', value: s.company.name || '', placeholder: '@akunmu' },
@@ -133,13 +138,19 @@
     const fld = document.createElement('div');
     fld.className = 'field';
     fld.innerHTML = '<label for="f_photo">Foto / gambar (opsional — dipakai template "image", mis. foto produk)</label><input type="file" id="f_photo" accept="image/*">';
-    body.insertBefore(fld, body.children[4] || null);
+    body.insertBefore(fld, body.children[7] || null);
+    const info = document.createElement('p');
+    info.className = 'muted'; info.style.fontSize = '12px';
+    info.textContent = eng.worker
+      ? `🟢 Server video (VPS) aktif — dirender Remotion: paket visual, ${eng.tts ? 'narasi suara & subtitle, ' : ''}musik${eng.pexels ? ', foto/video stok Pexels' : ''}.`
+      : '⚪ Server video (VPS) tidak aktif — video dirender di browser ini (tanpa narasi, musik & foto stok; paket visual hanya warna).';
+    body.insertBefore(info, body.firstChild);
     const photo = $('f_photo');
     const v = await fp;
     if (!v) return;
     if (!v.brief) return VO.ui.toast('Isi dulu video tentang apa', 'alert');
     const t = v.schedule ? new Date(v.schedule.replace(' ', 'T')).getTime() : null;
-    G.start({ brief: v.brief, style: v.style, format: v.format, duration: v.duration, brand: v.brand, cta: v.cta, divisionId: v.divisionId || null, image: photo.files[0] || null, schedule: t && isFinite(t) ? t : null, telegram: v.telegram ? true : false });
+    G.start({ brief: v.brief, style: v.style, pack: v.pack || undefined, voice: v.voice, music: v.music || undefined, format: v.format, duration: v.duration, brand: v.brand, cta: v.cta, divisionId: v.divisionId || null, image: photo.files[0] || null, schedule: t && isFinite(t) ? t : null, telegram: v.telegram ? true : false });
   };
 
   G.start = function (o) {

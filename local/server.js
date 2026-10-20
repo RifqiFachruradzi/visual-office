@@ -66,7 +66,9 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, delivered: listeners.size });
     }
     // login: sama seperti middleware Vercel
-    const g = await gate(url.pathname === '/' ? '/index.html' : url.pathname, req.headers.cookie);
+    const { isWorker } = await import('../lib/render.js');
+    const worker = (url.pathname === '/api/office' || url.pathname.startsWith('/files/')) && isWorker(req); // worker render (VPS)
+    const g = worker ? { ok: true } : await gate(url.pathname === '/' ? '/index.html' : url.pathname, req.headers.cookie);
     if (!g.ok) {
       if (g.api) return json(res, 401, { error: 'Belum login' });
       res.writeHead(302, { location: '/login.html' });
@@ -82,7 +84,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/public') return handlePublic(req, res);
     if (url.pathname === '/api/telegram') return handleTelegramAll(req, res);
     if (url.pathname.startsWith('/files/')) { // file hasil kerja (mode lokal tanpa Vercel Blob)
-      if (!(await gate(url.pathname, req.headers.cookie)).ok) { res.writeHead(401); return res.end('Belum login'); }
+      if (!worker && !(await gate(url.pathname, req.headers.cookie)).ok) { res.writeHead(401); return res.end('Belum login'); }
       const { serveLocalFile } = await import('../lib/files.js');
       return serveLocalFile(req, res, url.pathname.slice(7));
     }

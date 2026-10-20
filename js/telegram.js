@@ -37,6 +37,14 @@
       api('POST', { action: 'reply', chatId: c.chatId, text: (r.ok ? '✅ ' : '⚠️ ') + r.text + (r.ok ? '\n\nKetik /tim untuk melihat struktur terbaru.' : '') }).catch(() => {});
       return;
     }
+    if (c.videoDone) { // video dibuat & dirender di VPS saat kantor tidak dibuka → masuk Galeri
+      if (!Array.isArray(s.videos)) s.videos = [];
+      if (!s.videos.some((v) => v.id === c.videoDone.id)) s.videos.unshift(c.videoDone);
+      if (c.doc && !s.docs.some((d) => d.id === c.doc.id)) { s.docs.unshift(c.doc); VO.cloud.synced.add(c.doc.id); }
+      VO.log(s, `Video "${c.videoDone.title}" dibuat server video saat kantor tidak dibuka — masuk Galeri`, 'check');
+      VO.app.changed();
+      return;
+    }
     if (c.done) { // sudah dikerjakan server (kantor sedang tidak dibuka)
       if (!s.tasks.some((t) => t.id === c.id)) {
         s.tasks.unshift({ id: c.id, title: c.title, targetType: c.target.type, targetId: c.target.id, status: 'done', created: c.t, finished: Date.now(), subtasks: [], result: c.result, note: 'Dari Telegram — dikerjakan server saat kantor tidak dibuka', ai: true, source: 'telegram' });
@@ -51,7 +59,6 @@
     }
     const t = validTarget(s, c.target);
     if (c.video) { // permintaan video → programmatic video, MP4 dikirim balik ke chat ini
-      if (!VO.video.supported()) { api('POST', { action: 'reply', chatId: c.chatId, text: '⚠️ Browser yang membuka Visual Office belum bisa membuat video (pakai Chrome/Edge terbaru).' }).catch(() => {}); return; }
       const divId = t.type === 'division' ? t.id : t.type === 'dept' ? (s.departments.find((d) => d.id === t.id) || {}).divisionId : t.type === 'agent' ? (s.agents.find((a) => a.id === t.id) || {}).divisionId : null;
       VO.log(s, `Permintaan video dari Telegram: "${c.title}"`, 'send');
       const go = (image) => VO.gallery.start({ brief: c.title || 'Video tentang produk ini', divisionId: divId || null, image, telegram: c.chatId, style: c.photo && !c.title ? 'iklan' : undefined })
