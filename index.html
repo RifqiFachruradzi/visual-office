@@ -4,157 +4,187 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Visual Office · Kantor Agent AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" />
   <link rel="stylesheet" href="css/style.css" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 </head>
-<body class="studio dark"><!-- mode gelap langsung dipakai sejak awal (tidak berkedip saat data dimuat) -->
+<body class="studio dark ruang" data-view="office"><!-- mode gelap langsung dipakai sejak awal (tidak berkedip saat data dimuat) -->
   <header class="topbar">
     <div class="brand">
-      <img class="logo" src="favicon.svg" alt="" />
-      <input id="companyName" class="company" title="Klik untuk mengganti nama perusahaan" />
+      <span class="logo-sq" aria-hidden="true">VO</span>
+      <input id="companyName" class="company" title="Klik untuk mengganti nama perusahaan" aria-label="Nama perusahaan" />
     </div>
-    <div class="modes" role="tablist">
-      <button id="modeView" class="mode active" title="Mode lihat (V)"><i data-icon="eye"></i> Lihat</button>
-      <button id="modeEdit" class="mode" title="Mode edit layout (E)"><i data-icon="layout"></i> Edit Layout</button>
-    </div>
-    <div class="toolbar">
-      <label class="toggle" title="Karyawan bergerak sendiri (ngopi, ngobrol, dll.)"><input type="checkbox" id="ambient" /><span class="lbl-wide">Aktivitas </span>otomatis</label>
-      <label class="toggle" title="Agen mengerjakan tugas dengan AI sungguhan (Gemini gratis)"><input type="checkbox" id="aiMode" /> <span class="lbl-wide">Mode </span>AI</label>
+    <nav class="mainnav" role="tablist" aria-label="Navigasi utama">
+      <button type="button" class="tab active" data-tab="office" role="tab">Kantor</button>
+      <button type="button" class="tab" data-tab="tasks" role="tab">Tugas <span id="taskCount" class="badge">0</span></button>
+      <button type="button" class="tab" data-tab="docs" role="tab">Dokumen <span id="docCount" class="badge">0</span></button>
+      <button type="button" class="tab" data-tab="gallery" role="tab">Galeri <span id="galleryCount" class="badge">0</span></button>
+      <button type="button" class="tab" data-tab="log" role="tab">Aktivitas</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="statusbar">
       <button type="button" id="aiStatus" class="pill" title="Pilih sumber AI">…</button>
-      <select id="rpm" title="Batas panggilan AI per menit (free tier Gemini ± 10–15/menit)">
-        <option value="5">5/mnt</option><option value="10">10/mnt</option><option value="15">15/mnt</option><option value="30">30/mnt</option><option value="60">60/mnt</option>
-      </select>
-      <select id="speed" title="Kecepatan simulasi">
-        <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
-      </select>
-      <div class="modes viewseg" role="group" aria-label="Tampilan 2D / 3D">
-        <button id="view2d" class="mode" title="Denah 2D dari atas (tombol 2)">2D</button>
-        <button id="view3d" class="mode active" title="Tampilan 3D isometrik (tombol 3)">3D</button>
-      </div>
-      <button id="btnTelegram" title="Beri perintah lewat bot Telegram"><i data-icon="send"></i><span class="lbl-wide"> Telegram</span></button>
-      <button id="btnFit" title="Tampilkan seluruh kantor (F)"><i data-icon="maximize"></i></button>
-      <button id="btnExport" title="Simpan ke file JSON"><i data-icon="download"></i><span class="lbl-wide"> Export</span></button>
-      <button id="btnImport" title="Muat dari file JSON"><i data-icon="upload"></i><span class="lbl-wide"> Import</span></button>
-      <button id="btnSample" title="Isi kantor dengan contoh divisi & karyawan"><i data-icon="sparkles"></i><span class="lbl-wide"> Contoh</span></button>
-      <button id="btnReset" class="danger" title="Kosongkan kantor (mulai dari nol)"><i data-icon="reset"></i><span class="lbl-wide"> Kosongkan</span></button>
-      <span class="sep"></span>
-      <span class="who" id="who" title="Kamu adalah Boss"><i data-icon="crown"></i> <span id="whoName">Boss</span></span>
-      <a class="btn" id="btnLogout" href="/api/logout" title="Keluar"><i data-icon="logout"></i></a>
-      <input type="file" id="importFile" accept="application/json,.json" hidden />
+      <button type="button" id="btnTelegram" class="pill" title="Beri perintah lewat bot Telegram"><i data-icon="send"></i> Telegram</button>
+      <button type="button" id="videoStatus" class="pill" title="Server video (Remotion di VPS)"><i data-icon="monitor"></i> Server video</button>
     </div>
+    <details class="more">
+      <summary class="btn" aria-label="Pengaturan lainnya" title="Pengaturan lainnya"><i data-icon="settings"></i></summary>
+      <div class="menu">
+        <label class="toggle" title="Karyawan bergerak sendiri (ngopi, ngobrol, dll.)"><input type="checkbox" id="ambient" /> Aktivitas otomatis</label>
+        <label class="toggle" title="Agen mengerjakan tugas dengan AI sungguhan"><input type="checkbox" id="aiMode" /> Mode AI</label>
+        <label class="mrow">Batas AI <select id="rpm" title="Batas panggilan AI per menit (free tier Gemini ± 10–15/menit)">
+          <option value="5">5/mnt</option><option value="10">10/mnt</option><option value="15">15/mnt</option><option value="30">30/mnt</option><option value="60">60/mnt</option>
+        </select></label>
+        <label class="mrow">Kecepatan <select id="speed" title="Kecepatan simulasi">
+          <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
+        </select></label>
+        <hr />
+        <button type="button" id="btnExport"><i data-icon="download"></i> Export JSON</button>
+        <button type="button" id="btnImport"><i data-icon="upload"></i> Import JSON</button>
+        <button type="button" id="btnSample"><i data-icon="sparkles"></i> Isi contoh</button>
+        <button type="button" id="btnReset" class="danger"><i data-icon="reset"></i> Kosongkan kantor</button>
+      </div>
+    </details>
+    <span class="who" id="who" title="Kamu adalah Boss"><i data-icon="crown"></i> <span id="whoName">Boss</span></span>
+    <a class="btn" id="btnLogout" href="/api/logout" title="Keluar" aria-label="Keluar"><i data-icon="logout"></i></a>
+    <input type="file" id="importFile" accept="application/json,.json" hidden />
   </header>
 
   <main class="layout">
-    <aside class="panel left">
-      <div class="panel-head">
-        <h2>Struktur Organisasi</h2>
-        <button id="addDivision" class="small primary"><i data-icon="plus"></i> Divisi</button>
-      </div>
-      <div id="orgTree" class="tree"></div>
-      <div class="stats" id="stats"></div>
-    </aside>
-
-    <section class="stage">
-      <canvas id="office"></canvas>
-      <div class="zoomctl" role="group" aria-label="Zoom layout">
-        <button id="zoomIn" title="Perbesar (+)" aria-label="Perbesar">+</button>
-        <button id="zoomPct" class="pct" title="Klik untuk lihat seluruh kantor" aria-label="Level zoom">100%</button>
-        <button id="zoomOut" title="Perkecil (−)" aria-label="Perkecil">−</button>
-        <button id="zoomFit" title="Tampilkan seluruh kantor (F)" aria-label="Pas layar"><i data-icon="maximize"></i></button>
-      </div>
-      <nav id="roomTabs" class="roomtabs" aria-label="Lompat ke ruangan"></nav>
-      <div id="editBar" class="editbar hidden">
-        <div class="group">
-          <span class="lbl">Alat:</span>
-          <button data-tool="move" class="tool active" title="Geser & ubah ukuran ruangan / zona"><i data-icon="hand"></i> Pindah</button>
-          <button data-tool="erase" class="tool" title="Hapus furnitur"><i data-icon="eraser"></i> Hapus</button>
-        </div>
-        <div class="group" id="furniturePalette"><span class="lbl">Furnitur:</span></div>
-        <div class="group">
-          <span class="lbl">Ruang:</span>
-          <button data-fac="meeting" class="small"><i data-icon="plus"></i> Rapat</button>
-          <button data-fac="pantry" class="small"><i data-icon="plus"></i> Pantry</button>
-          <button data-fac="lounge" class="small"><i data-icon="plus"></i> Lounge</button>
-          <button data-fac="pool" class="small"><i data-icon="plus"></i> Kolam</button>
-          <button data-fac="billiard" class="small"><i data-icon="plus"></i> Biliar</button>
-        </div>
-        <div class="group">
-          <span class="lbl">Tata ruang:</span>
-          <select id="layoutSel" title="Satu ruangan: direktur & semua tim divisi dalam satu ruangan terbuka">
-            <option value="open">Satu ruangan (open plan)</option>
-            <option value="rooms">Ruang per departemen</option>
-          </select>
-          <span class="lbl">Lantai:</span>
-          <select id="floorSel"></select>
-          <span class="lbl">Peta:</span>
-          <input type="number" id="mapW" min="30" max="160" title="Lebar (tile)" />×<input type="number" id="mapH" min="20" max="120" title="Tinggi (tile)" />
-          <button id="btnAuto" class="small primary" title="Susun ulang semua ruangan otomatis"><i data-icon="wand"></i> Tata Otomatis</button>
-        </div>
-      </div>
-      <div id="chat" class="chat hidden" aria-live="polite">
-        <div class="chat-head">
-          <img id="chatImg" alt="" />
-          <div class="who2"><div class="n" id="chatName"></div><div class="r" id="chatRole"></div></div>
-          <button class="icon" id="chatClose" title="Tutup chat"><i data-icon="x"></i></button>
-        </div>
-        <div class="chat-body" id="chatBody"></div>
-        <div class="chat-note" id="chatNote"></div>
-        <form class="chat-foot" id="chatForm">
-          <textarea id="chatInput" placeholder="Tulis pesan… (Enter untuk kirim)"></textarea>
-          <button class="primary" type="submit" title="Kirim"><i data-icon="send"></i></button>
-        </form>
-      </div>
-      <div id="emptyStage" class="empty-stage hidden">
-        <div class="box">
-          <i data-icon="building" class="big"></i>
-          <h2>Kantormu masih kosong</h2>
-          <p>Kamu adalah <b>Boss</b>-nya. Mulai dengan membuat divisi, lalu tambahkan departemen dan rekrut karyawan agent AI.</p>
-          <div class="row">
-            <button class="primary" id="emptyAddDiv"><i data-icon="plus"></i> Tambah Divisi</button>
-            <button id="emptySample"><i data-icon="sparkles"></i> Muat contoh</button>
+    <section class="work">
+      <div class="officewrap">
+        <aside class="panel left" id="orgPanel" aria-label="Struktur organisasi">
+          <div class="panel-head">
+            <h2>Struktur</h2>
+            <button id="addDivision" class="small primary"><i data-icon="plus"></i> Divisi</button>
           </div>
-        </div>
+          <div id="orgTree" class="tree"></div>
+          <div class="stats" id="stats"></div>
+        </aside>
+
+        <section class="stage">
+          <canvas id="office"></canvas>
+          <div class="stagebar">
+            <div class="modes" role="tablist">
+              <button id="modeView" class="mode active" title="Mode lihat (V)"><i data-icon="eye"></i> Lihat</button>
+              <button id="modeEdit" class="mode" title="Mode edit layout (E)"><i data-icon="layout"></i> Edit layout</button>
+            </div>
+            <div class="modes viewseg" role="group" aria-label="Tampilan 2D / 3D">
+              <button id="view2d" class="mode" title="Denah 2D dari atas (tombol 2)">2D</button>
+              <button id="view3d" class="mode active" title="Tampilan 3D isometrik (tombol 3)">3D</button>
+            </div>
+            <button id="btnFit" class="icon-btn" title="Tampilkan seluruh kantor (F)" aria-label="Tampilkan seluruh kantor"><i data-icon="maximize"></i></button>
+          </div>
+          <div class="zoomctl" role="group" aria-label="Zoom layout">
+            <button id="zoomIn" title="Perbesar (+)" aria-label="Perbesar">+</button>
+            <button id="zoomPct" class="pct" title="Klik untuk lihat seluruh kantor" aria-label="Level zoom">100%</button>
+            <button id="zoomOut" title="Perkecil (−)" aria-label="Perkecil">−</button>
+            <button id="zoomFit" title="Tampilkan seluruh kantor (F)" aria-label="Pas layar"><i data-icon="maximize"></i></button>
+          </div>
+          <nav id="roomTabs" class="roomtabs" aria-label="Lompat ke ruangan"></nav>
+          <section class="card insp" id="inspector" aria-live="polite"></section>
+          <div class="bannerinfo">
+            <div><b>Lantai kantor</b><span id="bannerMeta"></span></div>
+            <button type="button" id="btnOpenOffice">Buka kantor penuh <i data-icon="maximize"></i></button>
+          </div>
+          <div id="editBar" class="editbar hidden">
+            <div class="group">
+              <span class="lbl">Alat:</span>
+              <button data-tool="move" class="tool active" title="Geser & ubah ukuran ruangan / zona"><i data-icon="hand"></i> Pindah</button>
+              <button data-tool="erase" class="tool" title="Hapus furnitur"><i data-icon="eraser"></i> Hapus</button>
+            </div>
+            <div class="group" id="furniturePalette"><span class="lbl">Furnitur:</span></div>
+            <div class="group">
+              <span class="lbl">Ruang:</span>
+              <button data-fac="meeting" class="small"><i data-icon="plus"></i> Rapat</button>
+              <button data-fac="pantry" class="small"><i data-icon="plus"></i> Pantry</button>
+              <button data-fac="lounge" class="small"><i data-icon="plus"></i> Lounge</button>
+              <button data-fac="pool" class="small"><i data-icon="plus"></i> Kolam</button>
+              <button data-fac="billiard" class="small"><i data-icon="plus"></i> Biliar</button>
+            </div>
+            <div class="group">
+              <span class="lbl">Tata ruang:</span>
+              <select id="layoutSel" title="Satu ruangan: direktur & semua tim divisi dalam satu ruangan terbuka">
+                <option value="open">Satu ruangan (open plan)</option>
+                <option value="rooms">Ruang per departemen</option>
+              </select>
+              <span class="lbl">Lantai:</span>
+              <select id="floorSel"></select>
+              <span class="lbl">Peta:</span>
+              <input type="number" id="mapW" min="30" max="160" title="Lebar (tile)" />×<input type="number" id="mapH" min="20" max="120" title="Tinggi (tile)" />
+              <button id="btnAuto" class="small primary" title="Susun ulang semua ruangan otomatis"><i data-icon="wand"></i> Tata Otomatis</button>
+            </div>
+          </div>
+          <div id="chat" class="chat hidden" aria-live="polite">
+            <div class="chat-head">
+              <img id="chatImg" alt="" />
+              <div class="who2"><div class="n" id="chatName"></div><div class="r" id="chatRole"></div></div>
+              <button class="icon" id="chatClose" title="Tutup chat"><i data-icon="x"></i></button>
+            </div>
+            <div class="chat-body" id="chatBody"></div>
+            <div class="chat-note" id="chatNote"></div>
+            <form class="chat-foot" id="chatForm">
+              <textarea id="chatInput" placeholder="Tulis pesan… (Enter untuk kirim)"></textarea>
+              <button class="primary" type="submit" title="Kirim"><i data-icon="send"></i></button>
+            </form>
+          </div>
+          <div id="emptyStage" class="empty-stage hidden">
+            <div class="box">
+              <i data-icon="building" class="big"></i>
+              <h2>Kantormu masih kosong</h2>
+              <p>Kamu adalah <b>Boss</b>-nya. Mulai dengan membuat divisi, lalu tambahkan departemen dan rekrut karyawan agent AI.</p>
+              <div class="row">
+                <button class="primary" id="emptyAddDiv"><i data-icon="plus"></i> Tambah Divisi</button>
+                <button id="emptySample"><i data-icon="sparkles"></i> Muat contoh</button>
+              </div>
+            </div>
+          </div>
+          <div class="hint" id="hint">Scroll = zoom · Drag = geser · Klik karyawan untuk detail</div>
+        </section>
       </div>
-      <div class="hint" id="hint">Scroll = zoom · Drag = geser · Klik karyawan untuk detail</div>
+
+      <div class="views">
+        <section id="taskPane" class="viewpane hidden" aria-label="Papan tugas">
+          <div class="vhead"><h2>Papan tugas</h2><span class="muted" id="taskMeta"></span></div>
+          <div id="taskList" class="kanban"></div>
+        </section>
+        <section id="docPane" class="viewpane hidden" aria-label="Gudang dokumen">
+          <div class="vhead"><h2>Dokumen</h2>
+            <div class="doc-tools">
+              <input type="text" id="docSearch" placeholder="Cari dokumen…" aria-label="Cari dokumen" />
+              <button id="docUpload" class="primary" title="Unggah file apa pun (.txt/.md jadi pengetahuan agen; PDF, video, gambar disimpan & bisa dikirim ke Telegram)"><i data-icon="upload"></i> Unggah</button>
+              <input type="file" id="docFile" multiple hidden />
+            </div>
+          </div>
+          <div id="docList" class="docgrid"></div>
+        </section>
+        <section id="galleryPane" class="viewpane hidden" aria-label="Galeri video">
+          <div class="vhead"><h2>Galeri video</h2><span class="muted">naskah AI → template → MP4 → jadwal tayang</span><span class="spacer"></span><button id="btnGalleryNew" class="primary"><i data-icon="plus"></i> Buat video</button></div>
+          <div id="galleryList" class="list"></div>
+        </section>
+        <section id="logPane" class="viewpane hidden" aria-label="Aktivitas">
+          <div class="vhead"><h2>Aktivitas</h2></div>
+          <div id="logList" class="list"></div>
+        </section>
+      </div>
     </section>
 
-    <aside class="panel right">
-      <section class="card" id="inspector"></section>
-      <section class="card">
-        <h3><i data-icon="send"></i> Perintah Boss</h3>
-        <form id="taskForm" class="task-form">
-          <textarea id="taskTitle" rows="2" placeholder="Contoh: Buat rencana peluncuran produk AI baru" required></textarea>
-          <div class="row">
-            <select id="taskTarget"></select>
-            <button type="submit" class="primary">Kirim</button>
-          </div>
-          <div class="row">
-            <button type="button" id="btnVideo" class="small" title="Divisi Sosmed membuat video programmatic (naskah → template → MP4) — masuk Galeri & bisa dikirim ke Telegram">🎬 Buat video</button>
-          </div>
-        </form>
-      </section>
-      <section class="card grow">
-        <div class="tabs">
-          <button class="tab active" data-tab="tasks">Tugas</button>
-          <button class="tab" data-tab="docs"><i data-icon="book"></i> Dokumen <span id="docCount" class="badge">0</span></button>
-          <button class="tab" data-tab="gallery">🎬 Galeri <span id="galleryCount" class="badge">0</span></button>
-          <button class="tab" data-tab="log">Aktivitas</button>
+    <aside class="panel right cmd" aria-label="Perintah Boss">
+      <div class="cmd-head">
+        <h2>Perintah Boss</h2>
+        <p>Dari web &amp; Telegram, di satu percakapan</p>
+      </div>
+      <div id="thread" class="thread"></div>
+      <form id="taskForm" class="task-form">
+        <div id="targetChips" class="chips" role="group" aria-label="Tujuan perintah"></div>
+        <select id="taskTarget" aria-label="Tujuan perintah (detail)"></select>
+        <div class="composer">
+          <textarea id="taskTitle" rows="2" placeholder="Tulis perintah untuk kantor…" aria-label="Perintah" required></textarea>
+          <button type="submit" class="primary send" title="Kirim (Ctrl+Enter)" aria-label="Kirim perintah"><i data-icon="send"></i></button>
         </div>
-        <div id="taskList" class="list"></div>
-        <div id="docPane" class="list hidden">
-          <div class="doc-tools">
-            <input type="text" id="docSearch" placeholder="Cari dokumen…" />
-            <button id="docUpload" class="small" title="Unggah file apa pun (.txt/.md jadi pengetahuan agen; PDF, video, gambar disimpan & bisa dikirim ke Telegram)"><i data-icon="upload"></i> Unggah</button>
-            <input type="file" id="docFile" multiple hidden />
-          </div>
-          <div id="docList" class="list"></div>
-        </div>
-        <div id="galleryPane" class="list hidden">
-          <div class="doc-tools"><button id="btnGalleryNew" class="small primary">🎬 Buat video</button><span class="muted" style="font-size:11px">naskah AI → template → MP4 → jadwal tayang</span></div>
-          <div id="galleryList" class="list"></div>
-        </div>
-        <div id="logList" class="list hidden"></div>
-      </section>
+        <div class="row"><button type="button" id="btnVideo" class="small"><i data-icon="monitor"></i> Buat video</button><span class="muted">Ctrl+Enter untuk kirim</span></div>
+      </form>
     </aside>
   </main>
 

@@ -391,3 +391,170 @@ body.studio.dark canvas.office3d { background: radial-gradient(ellipse at 50% 40
 .gplat { display: inline-flex; gap: 4px; align-items: center; }
 .gwarn { color: #ffcf6e; font-size: 12px; margin-top: 4px; }
 #resultDlg.wide { width: min(900px, 96vw); }
+
+/* ===================================================================== Tata letak "Ruang Kerja" (tata letak B, palet C)
+ * Bilah atas: tab Kantor / Tugas / Dokumen / Galeri / Aktivitas + status.
+ * Tengah: kantor 3D (penuh di tab Kantor, jadi banner di tab lain) + isi tab di bawahnya.
+ * Kanan: percakapan Perintah Boss (web & Telegram). */
+body.studio.dark.ruang {
+  --bg: #0c1013; --panel: #101519; --panel-2: #151c21; --line: #1d252b; --line-2: #2a343b;
+  --text: #eceff1; --muted: #9aa8b1; --accent: #f2b84b; --on-accent: #2a1c00; --primary: #f2b84b;
+  --ok: #43d9a0; --warn: #f2b84b; --danger: #ff8a80; --info: #8db4ff;
+  --input: #0f1418; --hover: #3a4650; --hover-bg: #182026; --sel-bg: #2a2312;
+  --card: #151c21; --float: rgba(16,21,25,.92); --hint-bg: rgba(12,16,19,.85); --soft: #c9d1d6; --dash: #2a343b;
+  --col: #121a1f; --glow: #1b242a;
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 14px;
+}
+.ruang h2, .ruang .company, .ruang .logo-sq, .ruang .insp-name { font-family: 'Space Grotesk', Inter, system-ui, sans-serif; }
+.ruang button { border-radius: 10px; }
+.ruang button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+.ruang select, .ruang input[type='text'], .ruang input[type='number'], .ruang textarea { background: var(--input); border-color: var(--line-2); border-radius: 10px; }
+.ruang .muted { color: var(--muted); font-size: 12px; }
+.ruang .spacer { flex: 1; }
+.ruang :focus-visible { outline: 2px solid var(--accent) !important; outline-offset: 2px; }
+
+/* bilah atas */
+.ruang .topbar { height: 64px; padding: 0 20px; gap: 18px; background: var(--bg); border-bottom: 1px solid var(--line); box-shadow: none; }
+.ruang .logo-sq { width: 34px; height: 34px; border-radius: 10px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-weight: 700; flex: none; }
+.ruang .company { font-size: 17px; font-weight: 700; width: 170px; }
+.ruang .mainnav { display: flex; gap: 4px; }
+.ruang .mainnav .tab { height: 38px; padding: 0 14px; border: 0; background: transparent; color: var(--muted); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.ruang .mainnav .tab:hover { color: var(--text); background: var(--hover-bg); }
+.ruang .mainnav .tab.active { background: var(--sel-bg); color: var(--accent); }
+.ruang .mainnav .badge { font-size: 11px; background: var(--line); border: 0; }
+.ruang .statusbar { display: flex; gap: 8px; }
+.ruang .pill { height: 30px; padding: 0 12px; border-radius: 99px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid var(--line-2); color: var(--muted); max-width: 240px; }
+.ruang .pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #56657a; flex: none; }
+.ruang .pill.on { background: var(--sel-bg); border-color: #5a4518; color: var(--accent); }
+.ruang .pill.on::before { background: var(--accent); }
+.ruang .pill .ic { display: none; }
+.ruang .more { position: relative; }
+.ruang .more > summary { list-style: none; width: 38px; height: 38px; padding: 0; border-radius: 10px; cursor: pointer; display: grid; place-items: center; }
+.ruang .more > summary::-webkit-details-marker { display: none; }
+.ruang .more .menu { position: absolute; right: 0; top: 46px; width: 260px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 30; box-shadow: 0 18px 40px rgba(0,0,0,.45); }
+.ruang .more .menu button { display: flex; align-items: center; gap: 8px; height: 36px; text-align: left; }
+.ruang .more .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; width: 100%; }
+.ruang .mrow { display: flex; align-items: center; justify-content: space-between; color: var(--muted); }
+.ruang .toggle { color: var(--text); }
+.ruang .who { color: var(--accent); }
+.ruang .btn { height: 38px; border-radius: 10px; background: var(--panel-2); border-color: var(--line-2); }
+
+/* kerangka */
+.ruang .layout { display: flex; grid-template-columns: none; height: calc(100% - 64px); }
+.ruang .work { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 16px 20px; overflow-y: auto; }
+.ruang .officewrap { flex: 1; min-height: 360px; display: flex; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: var(--panel); }
+.ruang .panel.left { width: 260px; flex: none; background: var(--panel); border-right: 1px solid var(--line); }
+.ruang .panel-head { padding: 14px 14px 12px; }
+.ruang .panel-head h2 { font-size: 15px; text-transform: none; letter-spacing: 0; color: var(--text); }
+.ruang .stage { flex: 1; background: radial-gradient(ellipse at 50% 50%, var(--glow) 0%, var(--bg) 75%); }
+.ruang canvas.office3d { background: radial-gradient(ellipse at 50% 45%, var(--glow) 0%, var(--bg) 75%); }
+.ruang .node.sel { background: var(--sel-bg); outline-color: #6b5420; }
+.ruang .node.boss, .ruang .node.boss .ni { color: var(--accent); }
+
+/* kontrol di atas kantor */
+.ruang .stagebar { position: absolute; left: 12px; top: 12px; display: flex; gap: 8px; z-index: 2; flex-wrap: wrap; }
+.ruang .stagebar .modes { background: var(--float); border-color: var(--line-2); border-radius: 12px; }
+.ruang .stagebar .mode { border-radius: 9px; }
+.ruang .stagebar .mode.active { background: var(--sel-bg); color: var(--accent); }
+.ruang .icon-btn { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; background: var(--float); border-color: var(--line-2); }
+.ruang .roomtabs { left: auto; right: 12px; transform: none; max-width: calc(100% - 420px); background: var(--float); border-color: var(--line-2); }
+.ruang .roomtabs .rt.on { background: var(--sel-bg); color: var(--accent); }
+.ruang .zoomctl { background: var(--float); border-color: var(--line-2); }
+.ruang .insp { position: absolute; left: 12px; top: 64px; width: 300px; max-height: calc(100% - 120px); overflow-y: auto; z-index: 2; background: var(--float); border: 1px solid var(--line-2); border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.45); }
+.ruang .insp.noselect { display: none; }
+.ruang .editbar { top: 64px; }
+.ruang .bannerinfo { display: none; position: absolute; left: 16px; right: 16px; bottom: 14px; align-items: flex-end; justify-content: space-between; gap: 12px; pointer-events: none; }
+.ruang .bannerinfo > div { display: flex; flex-direction: column; gap: 2px; background: var(--float); border: 1px solid var(--line-2); border-radius: 12px; padding: 8px 12px; }
+.ruang .bannerinfo b { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 16px; }
+.ruang .bannerinfo span { color: var(--muted); font-size: 12px; }
+.ruang .bannerinfo button { pointer-events: auto; height: 38px; background: var(--float); border-color: var(--line-2); font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+
+/* tab selain Kantor: kantor jadi banner, isi tab di bawahnya */
+body.ruang:not([data-view='office']) .officewrap { flex: none; height: 270px; min-height: 0; }
+body.ruang:not([data-view='office']) #orgPanel,
+body.ruang:not([data-view='office']) .stagebar,
+body.ruang:not([data-view='office']) .zoomctl,
+body.ruang:not([data-view='office']) .roomtabs,
+body.ruang:not([data-view='office']) .insp,
+body.ruang:not([data-view='office']) .hint,
+body.ruang:not([data-view='office']) .editbar,
+body.ruang:not([data-view='office']) .empty-stage { display: none !important; }
+body.ruang:not([data-view='office']) .bannerinfo { display: flex; }
+body.ruang[data-view='office'] .views { display: none; }
+.ruang .views { display: flex; flex-direction: column; }
+.ruang .viewpane { display: flex; flex-direction: column; gap: 14px; }
+.ruang .vhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ruang .vhead h2 { margin: 0; font-size: 22px; }
+.ruang .viewpane .list { overflow: visible; }
+
+/* papan tugas (Kanban) */
+.ruang .kanban { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; align-items: start; }
+.ruang .kcol { background: var(--col); border: 1px solid var(--line); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.ruang .khead { display: flex; align-items: center; gap: 8px; padding: 2px 4px; }
+.ruang .kdot { width: 8px; height: 8px; border-radius: 50%; }
+.ruang .kn { margin-left: auto; color: var(--muted); font-size: 12px; }
+.ruang .kcard { background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.ruang .kcard:hover { border-color: #5a4518; }
+.ruang .kcard .t { line-height: 1.35; }
+.ruang .ktag { align-self: flex-start; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: #1f2a31; color: var(--muted); }
+.ruang .ktag.video { background: #2a2240; color: #b79cff; }
+.ruang .ktag.tg { background: #13233b; color: var(--info); }
+.ruang .ktag.task { background: var(--sel-bg); color: var(--accent); }
+.ruang .bar { height: 5px; background: var(--line-2); border-radius: 99px; }
+.ruang .bar > i { background: var(--accent); }
+
+/* dokumen & galeri */
+.ruang .docgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.ruang .doc { background: var(--card); border-color: var(--line-2); border-radius: 12px; padding: 12px; }
+.ruang .doc .t { font-size: 14px; }
+.ruang .doc-tools { display: flex; gap: 8px; }
+.ruang .doc-tools input { width: 260px; height: 38px; }
+.ruang #galleryList .ggrid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.ruang .gcard { background: var(--card); border-color: var(--line-2); border-radius: 12px; padding: 8px; }
+.ruang .gcard.h { grid-column: span 2; }
+
+/* Perintah Boss (percakapan) */
+.ruang .panel.right.cmd { width: 380px; flex: none; padding: 0; gap: 0; overflow: hidden; background: var(--panel); border-left: 1px solid var(--line); }
+.ruang .cmd-head { padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.ruang .cmd-head h2 { margin: 0; font-size: 17px; }
+.ruang .cmd-head p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+.ruang .thread { flex: 1; overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.ruang .bubble { line-height: 1.45; word-wrap: break-word; }
+.ruang .bubble.me { align-self: flex-end; max-width: 85%; background: var(--accent); color: var(--on-accent); padding: 10px 14px; border-radius: 16px 16px 4px 16px; }
+.ruang .bubble.me .bm { font-size: 11px; font-weight: 700; opacity: .75; }
+.ruang .bubble.ag { display: flex; gap: 10px; }
+.ruang .bubble .av { width: 30px; height: 30px; border-radius: 50%; background: var(--sel-bg); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 11px; flex: none; }
+.ruang .bubble .bb { flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--line-2); padding: 10px 14px; border-radius: 4px 16px 16px 16px; }
+.ruang .bubble .bb .bm { font-size: 12px; color: var(--muted); }
+.ruang .bubble .bb .bm b { color: var(--text); }
+.ruang .bubble .bad { color: var(--danger); }
+.ruang .bubble .att { margin-top: 8px; width: 100%; display: flex; align-items: center; gap: 8px; text-align: left; white-space: normal; background: var(--panel); border-color: var(--line-2); padding: 8px 10px; }
+.ruang .bubble .bar { margin: 8px 0 4px; }
+.ruang .task-form { padding: 14px 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.ruang .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.ruang .chip { height: 30px; padding: 0 10px; border-radius: 99px; font-size: 12px; font-weight: 600; background: transparent; color: var(--muted); border: 1px solid var(--line-2); }
+.ruang .chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.ruang #taskTarget { width: 100%; height: 34px; color: var(--muted); }
+.ruang .composer { display: flex; gap: 8px; align-items: flex-end; }
+.ruang .composer textarea { flex: 1; resize: none; background: var(--card); padding: 10px 12px; }
+.ruang .composer .send { width: 46px; height: 46px; padding: 0; display: grid; place-items: center; flex: none; }
+.ruang .task-form .row { display: flex; align-items: center; gap: 8px; margin: 0; }
+
+@media (max-width: 1280px) {
+  .ruang .panel.right.cmd { width: 320px; }
+  .ruang .panel.left { width: 220px; }
+  .ruang .statusbar .pill:not(.on) { display: none; }
+}
+@media (max-width: 900px) {
+  .ruang .topbar { height: auto; flex-wrap: wrap; padding: 10px 12px; gap: 10px; }
+  .ruang .mainnav { order: 5; width: 100%; overflow-x: auto; }
+  .ruang .layout { flex-direction: column; height: auto; }
+  .ruang .work { padding: 12px; overflow: visible; }
+  .ruang .officewrap { flex: none; height: 62vh; }
+  .ruang .panel.left { display: none; }
+  .ruang .panel.right.cmd { width: auto; height: 80vh; border-left: 0; border-top: 1px solid var(--line); }
+  .ruang .roomtabs { display: none; }
+  .ruang .insp { width: calc(100% - 24px); }
+  .ruang .who { display: none; }
+  .ruang .hint { display: none; }
+}

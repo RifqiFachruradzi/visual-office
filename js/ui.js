@@ -424,6 +424,7 @@
         <div class="btns" style="margin-top:10px"><button class="small" data-i="edit">${VO.icon('edit')} Edit</button>${f.type !== 'boss' ? `<button class="small danger" data-i="del">${VO.icon('trash')} Hapus</button>` : ''}</div>`;
     }
     if (el._html !== h) { el.innerHTML = h; el._html = h; }
+    el.classList.toggle('noselect', !sel); // kartu melayang di atas kantor hanya saat ada yang dipilih
   };
 
   ui.bindInspector = function () {
@@ -466,28 +467,79 @@
       sel.innerHTML = h; sel._html = h;
       if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
     }
+    // chip cepat: seluruh kantor + tiap divisi (detail departemen/karyawan lewat pilihan di bawahnya)
+    const v = sel.value || 'all:';
+    const chips = [['all:', 'Seluruh kantor'], ...s.divisions.map((d) => ['division:' + d.id, '@' + d.name])];
+    const ch = chips.map(([val, label]) => `<button type="button" class="chip${v === val ? ' on' : ''}" data-target="${val}">${esc(label)}</button>`).join('');
+    const box = $('targetChips');
+    if (box._html !== ch) { box.innerHTML = ch; box._html = ch; }
   };
 
   const ST_TXT = { briefing: 'briefing', meeting: 'rapat', in_progress: 'dikerjakan', done: 'selesai', failed: 'gagal' };
   const fmtTime = (t) => new Date(t).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+  const COLS = [['Briefing & rapat', ['briefing', 'meeting'], 'var(--info)'], ['Dikerjakan', ['in_progress'], 'var(--accent)'], ['Selesai', ['done'], 'var(--ok)'], ['Gagal', ['failed'], 'var(--danger)']];
+  const progressOf = (t) => { const n = t.subtasks.length; return t.status === 'done' ? 1 : n ? t.subtasks.reduce((a, b) => a + (b.progress || 0), 0) / n : 0.03; };
+  const kindOf = (t) => (t.videoId ? ['VIDEO', 'video'] : t.source === 'telegram' ? ['TELEGRAM', 'tg'] : ['TUGAS', 'task']);
+
   ui.renderTasks = function () {
     const s = S();
     const tl = $('taskList');
     let h = '';
-    for (const t of s.tasks) {
-      const n = t.subtasks.length;
-      const p = t.status === 'done' ? 1 : n ? t.subtasks.reduce((a, b) => a + (b.progress || 0), 0) / n : 0.03;
-      h += `<div class="task" data-id="${t.id}"><div class="t">${esc(t.title)}</div>
-        <div class="meta"><span class="st ${t.status}">${ST_TXT[t.status] || t.status}</span><span>→ ${esc(VO.tasks.targetLabel(s, t.targetType, t.targetId))}</span><span>· ${n} subtugas</span>${t.ai ? `<span>· ${VO.icon('sparkles')} AI</span>` : ''}</div>
-        <div class="bar"><i style="width:${Math.round(p * 100)}%"></i></div></div>`;
+    for (const [title, sts, color] of COLS) {
+      const list = s.tasks.filter((t) => sts.includes(t.status));
+      if (title === 'Gagal' && !list.length) continue;
+      h += `<div class="kcol"><div class="khead"><span class="kdot" style="background:${color}"></span><b>${title}</b><span class="kn">${list.length}</span></div>`;
+      for (const t of list.slice(0, 40)) {
+        const [k, kc] = kindOf(t), p = progressOf(t);
+        h += `<article class="task kcard" data-id="${t.id}"><span class="ktag ${kc}">${k}</span><div class="t">${esc(t.title)}</div>
+          <div class="meta"><span>→ ${esc(VO.tasks.targetLabel(s, t.targetType, t.targetId))}</span><span>· ${t.subtasks.length} subtugas</span>${t.ai ? `<span>· ${VO.icon('sparkles')} AI</span>` : ''}</div>
+          ${t.status === 'done' || t.status === 'failed' ? '' : `<div class="bar"><i style="width:${Math.round(p * 100)}%"></i></div>`}</article>`;
+      }
+      if (!list.length) h += `<p class="empty">Kosong</p>`;
+      h += `</div>`;
     }
-    if (!h) h = `<p class="empty">Belum ada tugas. Tulis perintah di atas lalu klik <b>Kirim</b> — lihat bagaimana kantor bergerak!</p>`;
+    if (!s.tasks.length) h = `<p class="empty">Belum ada tugas. Tulis perintah di panel <b>Perintah Boss</b> (kanan) lalu kirim — lihat bagaimana kantor bergerak!</p>`;
     if (tl._html !== h) { tl.innerHTML = h; tl._html = h; }
+    const active = s.tasks.filter((t) => t.status !== 'done' && t.status !== 'failed').length;
+    $('taskCount').textContent = active;
+    $('taskMeta').textContent = `${s.tasks.length} tugas · ${active} berjalan`;
+    const busy = s.agents.filter((a) => VO.sim.isBusy(a.id)).length;
+    $('bannerMeta').textContent = `${busy} agen bekerja · ${Math.max(0, s.agents.length - busy)} siaga`;
 
     const ll = $('logList');
     const lh = s.log.slice(0, 120).map((l) => `<div class="log"><time>${fmtTime(l.t)}</time>${VO.icon(l.icon || 'activity')}${esc(l.text)}</div>`).join('');
     if (ll._html !== lh) { ll.innerHTML = lh; ll._html = lh; }
+  };
+
+  /* ------------------------------------------------------------ percakapan Perintah Boss */
+  const initials = (n) => (String(n || '?').split(/\s+/).map((w) => (w.match(/[A-Za-z0-9]/) || [''])[0]).join('') || '?').slice(0, 2).toUpperCase();
+  const plain = (md) => String(md || '').replace(/[#*_`>]/g, '').replace(/\s+/g, ' ').trim();
+  ui.renderThread = function () {
+    const s = S();
+    const el = $('thread');
+    const list = s.tasks.slice(0, 25).reverse(); // terbaru di bawah
+    let h = '';
+    for (const t of list) {
+      const target = VO.tasks.targetLabel(s, t.targetType, t.targetId);
+      h += `<div class="bubble me"><div class="bm">${esc(target)}${t.source === 'telegram' ? ' · via Telegram' : ''}${t.videoId ? ' · Video' : ''}</div>${esc(t.title)}</div>`;
+      const lead = t.targetType === 'agent' ? VO.findEntity(s, t.targetId) : t.targetType === 'division' ? VO.director(s, t.targetId) : null;
+      const who = lead ? lead.name : t.targetType === 'all' ? 'Seluruh kantor' : target;
+      const role = lead ? lead.role : 'Tim';
+      const vid = t.videoId && (s.videos || []).find((v) => v.id === t.videoId);
+      let body;
+      if (t.status === 'done') body = `${esc(plain(t.result).slice(0, 220) || 'Selesai.')}${plain(t.result).length > 220 ? '…' : ''}<button type="button" class="att" data-task="${t.id}">${VO.icon('file')} Lihat laporan lengkap</button>`;
+      else if (t.status === 'failed') body = `<span class="bad">Gagal: ${esc(t.note || 'lihat detail')}</span><button type="button" class="att" data-task="${t.id}">${VO.icon('file')} Detail</button>`;
+      else { const p = progressOf(t); body = `${esc({ briefing: 'Sedang briefing tim…', meeting: 'Rapat pembagian tugas…', in_progress: 'Sedang dikerjakan…' }[t.status] || t.status)}<div class="bar"><i style="width:${Math.round(p * 100)}%"></i></div><div class="bm">${Math.round(p * 100)}% · ${t.subtasks.length} subtugas</div>`; }
+      if (vid) body += vid.file ? `<button type="button" class="att" data-video="${vid.id}">${VO.icon('monitor')} ${esc(vid.title)} (${vid.duration || '?'} dtk)</button>` : vid.status === 'producing' ? `<div class="bm">Video: ${esc(vid.stage || 'diproduksi')} ${Math.round((vid.progress || 0) * 100)}%</div>` : '';
+      h += `<div class="bubble ag"><span class="av">${esc(initials(who))}</span><div class="bb"><div class="bm"><b>${esc(who)}</b> · ${esc(role)}</div>${body}</div></div>`;
+    }
+    if (!h) h = `<p class="empty">Belum ada perintah. Pilih tujuan di bawah, tulis perintahnya, lalu kirim. Perintah dari bot Telegram juga muncul di sini.</p>`;
+    if (el._html !== h) {
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+      el.innerHTML = h; el._html = h;
+      if (atBottom || !el._init) { el.scrollTop = el.scrollHeight; el._init = true; }
+    }
   };
 
   /* ------------------------------------------------------------ gudang dokumen */

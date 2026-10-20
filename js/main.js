@@ -165,6 +165,7 @@
       if (app._dirty) {
         VO.ui.renderTargets();
         VO.ui.renderTasks();
+        VO.ui.renderThread();
         VO.ui.renderDocs();
         app._dirty = false;
       }
@@ -513,16 +514,43 @@
     $('taskTitle').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('taskForm').requestSubmit();
     });
-    document.querySelectorAll('.tab').forEach((tab) =>
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === tab));
-        $('taskList').classList.toggle('hidden', tab.dataset.tab !== 'tasks');
-        $('logList').classList.toggle('hidden', tab.dataset.tab !== 'log');
-        $('docPane').classList.toggle('hidden', tab.dataset.tab !== 'docs');
-        $('galleryPane').classList.toggle('hidden', tab.dataset.tab !== 'gallery');
-        if (tab.dataset.tab === 'gallery') VO.gallery.render();
-      })
-    );
+    // navigasi atas: Kantor (kantor penuh) atau Tugas/Dokumen/Galeri/Aktivitas (kantor jadi banner + isi di bawahnya)
+    const PANES = { tasks: 'taskPane', docs: 'docPane', gallery: 'galleryPane', log: 'logPane' };
+    const showView = (v) => {
+      if (v !== 'office' && $('modeEdit').classList.contains('active')) $('modeView').click();
+      document.body.dataset.view = v;
+      document.querySelectorAll('.mainnav .tab').forEach((x) => { x.classList.toggle('active', x.dataset.tab === v); x.setAttribute('aria-selected', x.dataset.tab === v); });
+      for (const [k, id] of Object.entries(PANES)) $(id).classList.toggle('hidden', k !== v);
+      if (v === 'gallery') VO.gallery.render();
+      app._dirty = true;
+      // kanvas berubah ukuran → pas-kan ulang kantor setelah tata letak selesai
+      requestAnimationFrame(() => requestAnimationFrame(() => R.fit($('office'), app.state)));
+    };
+    VO.ui.showView = showView;
+    document.querySelectorAll('.mainnav .tab').forEach((tab) => tab.addEventListener('click', () => showView(tab.dataset.tab)));
+    $('btnOpenOffice').addEventListener('click', () => showView('office'));
+    $('thread').addEventListener('click', (e) => {
+      const t = e.target.closest('[data-task]');
+      if (t) return VO.ui.showTask(t.dataset.task);
+      const g = e.target.closest('[data-video]');
+      if (g) { showView('gallery'); VO.gallery.show(g.dataset.video); }
+    });
+    $('targetChips').addEventListener('click', (e) => {
+      const c = e.target.closest('[data-target]');
+      if (!c) return;
+      $('taskTarget').value = c.dataset.target;
+      VO.ui.renderTargets(); $('taskTitle').focus();
+    });
+    $('taskTarget').addEventListener('change', () => VO.ui.renderTargets());
+    // status server video (worker Remotion di VPS)
+    const videoPill = async () => {
+      const e = VO.video ? await VO.video.engine(true) : { worker: false };
+      const p = $('videoStatus');
+      p.classList.toggle('on', !!e.worker);
+      p.title = e.worker ? 'Server video (VPS) aktif — klik untuk membuat video' : 'Server video (VPS) tidak aktif — video dirender di browser';
+    };
+    videoPill(); setInterval(videoPill, 30000);
+    $('videoStatus').addEventListener('click', () => VO.gallery.openCreate());
     $('taskList').addEventListener('click', (e) => {
       const t = e.target.closest('.task');
       if (t) VO.ui.showTask(t.dataset.id);
