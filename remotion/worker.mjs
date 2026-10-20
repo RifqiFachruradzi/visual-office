@@ -16,7 +16,7 @@
  *   BROWSER_EXECUTABLE     (opsional) Chrome/Chromium headless; default diunduh Remotion
  *   RENDER_CONCURRENCY     (opsional) tab paralel saat render, default 1 (VPS 2 core / 2 GB)
  *
- * Tes tanpa server:  node worker.mjs --test [bold|minimal|neon|editorial|playful|all] [--still]
+ * Tes tanpa server:  node worker.mjs --test [bold|minimal|neon|editorial|playful|all] [--still] [--sb naskah.json] [--image foto.png] [--music] [16:9]
  * ========================================================================= */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -327,7 +327,8 @@ async function testMode(args) {
   const url = await getBundle();
   for (const pack of packs) {
     const [bg1, bg2, accent, text] = THEMES[pack];
-    const sb = { ...JSON.parse(JSON.stringify(args.includes('--more') ? SAMPLE2 : SAMPLE)), pack, theme: { bg1, bg2, accent, text } };
+    const own = args.includes('--sb') ? JSON.parse(fs.readFileSync(args[args.indexOf('--sb') + 1], 'utf8')) : null; // naskah sendiri (JSON storyboard)
+    const sb = { ...JSON.parse(JSON.stringify(own || (args.includes('--more') ? SAMPLE2 : SAMPLE))), pack, theme: { bg1, bg2, accent, text } };
     const job = { id: 'test-' + pack, format: fmt };
     const dir = path.join(WORK, job.id); fs.mkdirSync(dir, { recursive: true });
     const img = args[args.indexOf('--image') + 1];
@@ -337,7 +338,8 @@ async function testMode(args) {
     // subtitle contoh (tanpa TTS): waktu kata dibagi rata per adegan
     const words = []; let t = 0;
     if (args.includes('--captions')) for (const sc of sb.scenes) { const ws = sc.narration.split(' '); ws.forEach((w, i) => words.push({ text: w, t0: t + 0.2 + (i * (sc.sec - 0.5)) / ws.length, t1: t + 0.2 + ((i + 1) * (sc.sec - 0.5)) / ws.length })); t += sc.sec; }
-    const props = { format: fmt, sb, imageUrl, voice: null, words, music: null };
+    const music = args.includes('--music') && fs.existsSync(path.join(MUSIC_DIR, (sb.music || 'upbeat') + '.wav')) ? { src: `http://127.0.0.1:${PORT}/music/${sb.music || 'upbeat'}.wav` } : null;
+    const props = { format: fmt, sb, imageUrl, voice: null, words, music };
     const composition = await selectComposition({ serveUrl: url, id: 'Video', inputProps: props, browserExecutable: BROWSER });
     if (args.includes('--still')) {
       let acc = 0;
@@ -349,7 +351,7 @@ async function testMode(args) {
       log('still', pack, 'OK');
     } else {
       const t1 = Date.now(), out = path.join(outDir, `test-${pack}.mp4`);
-      await renderMedia({ composition, serveUrl: url, codec: 'h264', crf: 23, outputLocation: out, inputProps: props, concurrency: CONCURRENCY, browserExecutable: BROWSER, x264Preset: 'veryfast' });
+      await renderMedia({ composition, serveUrl: url, codec: 'h264', crf: 23, audioCodec: 'aac', outputLocation: out, inputProps: props, concurrency: CONCURRENCY, browserExecutable: BROWSER, x264Preset: 'veryfast' });
       log(`render ${pack}: ${out} (${Math.round((Date.now() - t1) / 1000)} dtk)`);
     }
   }
