@@ -4,7 +4,7 @@
   "functions": {
     "api/*.js": {
       "maxDuration": 60,
-      "includeFiles": "js/{model,videoboard}.js"
+      "includeFiles": "js/*.js"
     }
   },
   "headers": [
