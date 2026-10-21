@@ -14,6 +14,8 @@ import {
   interpolate, random, spring, useCurrentFrame, useVideoConfig,
 } from 'remotion';
 
+import { CUSTOM } from './custom/index.js';
+
 export const FPS = 30;
 export const SIZES = { '9:16': [720, 1280], '16:9': [1280, 720] };
 export const totalSeconds = (sb) => (sb && sb.scenes ? sb.scenes.reduce((a, x) => a + (Number(x.sec) || 3), 0) : 10);
@@ -547,8 +549,25 @@ function Sound({ voice, music, total }) {
   );
 }
 
+/* ------------------------------------------------------------ adegan kustom (kode ditulis AI) */
+// Error di kode AI tidak boleh menggagalkan video: jatuh ke template biasa (kecuali saat validasi worker)
+class Guard extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  render() { return this.state.err ? this.props.fallback : this.props.children; }
+}
+function CustomScene({ C, sc, L, strict, fallback }) {
+  const props = {
+    scene: sc, theme: { bg1: L.bg1, bg2: L.bg2, accent: L.accent, text: L.text },
+    fonts: { head: `"${L.pack.head}", sans-serif`, body: `"${L.pack.body}", sans-serif`, headWeight: L.pack.hw },
+    media: sc.mediaSrc ? { src: sc.mediaSrc, type: sc.mediaType || 'photo' } : null,
+    durationInFrames: Math.max(1, Math.round(sc.sec * FPS)), safeTop: L.top, safeBottom: L.bottom, vertical: L.vert,
+  };
+  return strict ? <C {...props} /> : <Guard fallback={fallback}><C {...props} /></Guard>;
+}
+
 /* ------------------------------------------------------------ komposisi utama */
-export const Video = ({ sb, imageUrl, voice, words, music }) => {
+export const Video = ({ sb, imageUrl, voice, words, music, strictCustom }) => {
   const [handle] = useState(() => delayRender('Memuat font'));
   useEffect(() => {
     const done = () => continueRender(handle);
@@ -568,7 +587,9 @@ export const Video = ({ sb, imageUrl, voice, words, music }) => {
             <Sequence key={i} from={Math.round(starts[i] * FPS)} durationInFrames={Math.max(1, Math.round(sc.sec * FPS))}>
               <Background sceneIndex={i} start={Math.round(starts[i] * FPS)} />
               <Transition sec={sc.sec} last={i === sb.scenes.length - 1} index={i}>
-                <Tpl sc={sc} imageUrl={imageUrl} brand={sb.brand} />
+                {sc.customId && CUSTOM[sc.customId]
+                  ? <CustomScene C={CUSTOM[sc.customId]} sc={sc} L={L} strict={strictCustom} fallback={<Tpl sc={sc} imageUrl={imageUrl} brand={sb.brand} />} />
+                  : <Tpl sc={sc} imageUrl={imageUrl} brand={sb.brand} />}
               </Transition>
             </Sequence>
           );

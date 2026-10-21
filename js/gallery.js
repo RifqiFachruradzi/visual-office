@@ -20,7 +20,7 @@
   function card(v) {
     const vert = v.format !== '16:9';
     const thumb = v.thumb && v.thumb.url ? `<img src="${esc(v.thumb.url)}" alt="" loading="lazy">` : `<div class="gph">${v.status === 'producing' ? '🎬' : '🎞️'}</div>`;
-    const stage = v.status === 'producing' ? `<div class="gbar"><i style="width:${Math.round((v.progress || 0) * 100)}%"></i></div><div class="gst">${esc({ naskah: 'Menulis naskah…', antre: 'Antre di server video…', media: 'Mencari foto/video stok…', narasi: 'Merekam narasi…', render: 'Merender ' + Math.round((v.progress || 0) * 100) + '%', upload: 'Menyimpan…' }[v.stage] || 'Tim sedang riset…')}</div>` : '';
+    const stage = v.status === 'producing' ? `<div class="gbar"><i style="width:${Math.round((v.progress || 0) * 100)}%"></i></div><div class="gst">${esc({ naskah: 'Menulis naskah…', antre: 'Antre di server video…', media: 'Mencari foto/video stok…', narasi: 'Merekam narasi…', kode: 'AI menulis animasi khusus…', render: 'Merender ' + Math.round((v.progress || 0) * 100) + '%', upload: 'Menyimpan…' }[v.stage] || 'Tim sedang riset…')}</div>` : '';
     const sched = v.schedule ? `<span>⏰ ${esc(when(v.schedule))}</span>` : '';
     return `<div class="gcard ${vert ? 'v' : 'h'} st-${v.status}" data-vid="${v.id}">
       <div class="gthumb">${thumb}${v.duration ? `<span class="gdur">${v.duration} dtk</span>` : ''}</div>
@@ -124,6 +124,7 @@
       { key: 'brief', label: 'Mau video tentang apa?', type: 'textarea', value: pre.brief || '', placeholder: 'mis. Jelaskan kenapa 1 pertanyaan ke ChatGPT butuh listrik ±10× pencarian Google' },
       { key: 'style', label: 'Gaya video', type: 'select', value: pre.style || 'explainer', options: Object.entries(VO.video.STYLES).map(([k, x]) => ({ value: k, label: x.label })) },
       { key: 'pack', label: 'Paket visual', type: 'select', value: pre.pack || '', options: [{ value: '', label: 'Otomatis — dipilih AI sesuai topik' }, ...Object.entries(B.PACKS).map(([k, x]) => ({ value: k, label: x.label }))] },
+      { key: 'creative', label: 'Animasi', type: 'select', value: 'on', options: [{ value: 'on', label: 'Kreatif — AI menulis animasi khusus untuk 1–2 adegan (± 1–3 menit lebih lama)' }, { value: 'off', label: 'Template saja (lebih cepat)' }] },
       { key: 'voice', label: 'Narasi suara + subtitle', type: 'select', value: 'female', options: Object.entries(B.VOICES).map(([k, x]) => ({ value: k, label: x })) },
       { key: 'music', label: 'Musik latar', type: 'select', value: '', options: [{ value: '', label: 'Otomatis — sesuai suasana' }, ...Object.entries(B.MUSIC).map(([k, x]) => ({ value: k, label: x }))] },
       { key: 'format', label: 'Format', type: 'select', value: '9:16', options: [{ value: '9:16', label: '9:16 vertikal — TikTok, Reels, Shorts' }, { value: '16:9', label: '16:9 horizontal — YouTube' }] },
@@ -154,7 +155,7 @@
     if (!v) return;
     if (!v.brief) return VO.ui.toast('Isi dulu video tentang apa', 'alert');
     const t = v.schedule ? new Date(v.schedule.replace(' ', 'T')).getTime() : null;
-    G.start({ brief: v.brief, style: v.style, pack: v.pack || undefined, voice: v.voice, music: v.music || undefined, format: v.format, duration: v.duration, brand: v.brand, cta: v.cta, divisionId: v.divisionId || null, files: [...photo.files].slice(0, 8), schedule: t && isFinite(t) ? t : null, telegram: v.telegram ? true : false });
+    G.start({ brief: v.brief, style: v.style, pack: v.pack || undefined, creative: v.creative !== 'off', voice: v.voice, music: v.music || undefined, format: v.format, duration: v.duration, brand: v.brand, cta: v.cta, divisionId: v.divisionId || null, files: [...photo.files].slice(0, 8), schedule: t && isFinite(t) ? t : null, telegram: v.telegram ? true : false });
   };
 
   G.start = function (o) {

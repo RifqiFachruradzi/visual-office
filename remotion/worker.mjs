@@ -241,9 +241,10 @@ async function getBundle() {
   serveUrl = await bundle({ entryPoint: path.join(HERE, 'src', 'index.jsx'), publicDir: path.join(HERE, 'public') });
   return serveUrl;
 }
+const baseProps = (job, sb, extra) => ({ format: job.format, sb, imageUrl: extra.imageUrl || null, voice: extra.voice, words: extra.words, music: sb.music && sb.music !== 'none' && fs.existsSync(path.join(MUSIC_DIR, sb.music + '.wav')) ? { src: `http://127.0.0.1:${PORT}/music/${sb.music}.wav` } : null });
 async function renderJob(job, dir, sb, extra, onProgress) {
-  const props = { format: job.format, sb, imageUrl: extra.imageUrl || null, voice: extra.voice, words: extra.words, music: sb.music && sb.music !== 'none' && fs.existsSync(path.join(MUSIC_DIR, sb.music + '.wav')) ? { src: `http://127.0.0.1:${PORT}/music/${sb.music}.wav` } : null };
-  const url = await getBundle();
+  const props = baseProps(job, sb, extra);
+  const url = extra.serveUrl || (await getBundle()); // bundel khusus job bila ada adegan kustom
   const composition = await selectComposition({ serveUrl: url, id: 'Video', inputProps: props, browserExecutable: BROWSER });
   const out = path.join(dir, 'video.mp4'), thumb = path.join(dir, 'thumb.jpg');
   let last = 0;
@@ -254,6 +255,113 @@ async function renderJob(job, dir, sb, extra, onProgress) {
   });
   await renderStill({ composition, serveUrl: url, output: thumb, inputProps: props, frame: Math.round(Math.min(1.6, sb.scenes[0].sec * 0.6) * FPS), imageFormat: 'jpeg', jpegQuality: 75, scale: 0.5, browserExecutable: BROWSER });
   return { out, thumb, duration: composition.durationInFrames / FPS };
+}
+
+/* ------------------------------------------------------------ TINGKAT 2: adegan yang kodenya ditulis AI */
+// Adegan bertanda sc.custom (ide animasi) → AI menulis komponen Remotion (JSX) → dicek (aturan, sintaks,
+// bundel, render cuplikan di 3 titik waktu) → error dikirim balik ke AI untuk diperbaiki (maks. 3 putaran).
+// Tetap gagal → adegan memakai template biasa. Kode AI hanya berjalan di Chrome headless (tanpa akses rahasia).
+const CUSTOM_DIR = path.join(HERE, 'src', 'custom');
+const GEN_DIR = path.join(CUSTOM_DIR, 'gen');
+const CUSTOM_ROUNDS = Math.max(1, Number(env('CUSTOM_ROUNDS', '3')) || 3);
+function writeRegistry(ids) {
+  fs.writeFileSync(path.join(CUSTOM_DIR, 'index.js'), ids.length
+    ? ids.map((id) => `import ${id} from './gen/${id}.jsx';`).join('\n') + `\nexport const CUSTOM = { ${ids.join(', ')} };\n`
+    : '// Registri adegan kustom (tingkat 2): ditulis ulang worker untuk tiap job yang punya animasi buatan AI.\n// Kosong = semua adegan memakai template biasa.\nexport const CUSTOM = {};\n');
+}
+const CODE_SYSTEM = [
+  'Kamu motion designer sekaligus engineer Remotion (React) yang membuat adegan video pendek media sosial yang memukau, rapi, dan profesional.',
+  'Tulis SATU file JSX berisi `export default function Scene(props) { ... }`.',
+  'ATURAN WAJIB:',
+  "- Import HANYA dari 'react' dan 'remotion' (AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring, Easing, random, Img, OffthreadVideo, Sequence). Tanpa library lain, tanpa file CSS, tanpa fetch/URL luar, tanpa window/document, tanpa Math.random (pakai random('seed-apa-saja')).",
+  '- props: scene (isi adegan: title, sub, kicker, items, value, unit, label, narration, …), theme {bg1,bg2,accent,text} (warna hex), fonts {head, body, headWeight}, media {src,type:"photo"|"video"}|null, durationInFrames, safeTop, safeBottom (px area atas/bawah yang dipakai subtitle — jangan taruh teks penting di sana), vertical (true = 9:16).',
+  '- Semua gerak dihitung dari useCurrentFrame() (deterministik) dan berlangsung sepanjang durationInFrames (30 fps). Ukuran kanvas dari useVideoConfig().width/height; ukuran huruf relatif terhadap width.',
+  '- Akar komponen <AbsoluteFill>. Latar paket sudah digambar di bawah; boleh ditimpa dengan latar sendiri.',
+  '- Teks dari scene dipakai persis (bahasa Indonesia), harus terbaca (kontras), tidak keluar layar, tidak bertumpuk. Pakai fonts.head untuk judul.',
+  '- Ilustrasi dibuat dari div / SVG inline (ikon, grafik, partikel, bentuk) — kreatif, bukan sekadar teks muncul. Bila media ada, tampilkan dengan <Img> / <OffthreadVideo muted>.',
+  '- Maksimal ±180 baris. Balas HANYA kode dalam satu blok ```jsx.',
+].join('\n');
+function codePrompt(t, sb, job) {
+  const sc = t.sc, vert = job.format !== '16:9';
+  const pick = {}; for (const k of ['kicker', 'title', 'sub', 'items', 'value', 'unit', 'prefix', 'label', 'text', 'author', 'price', 'old', 'left', 'right', 'from']) if (sc[k] != null && sc[k] !== '') pick[k] = sc[k];
+  return [
+    `Video: "${sb.title}" — ${vert ? 'vertikal 9:16 (720×1280)' : 'horizontal 16:9 (1280×720)'}, paket visual "${sb.pack}".`,
+    `Adegan ${t.i + 1} dari ${sb.scenes.length}, durasi ${sc.sec} detik (${Math.round(sc.sec * FPS)} frame).`,
+    `IDE ANIMASI: ${sc.custom}`,
+    `Isi adegan (template asal "${sc.t}"): ${JSON.stringify(pick)}`,
+    sc.narration ? `Narasi yang dibacakan saat adegan ini: "${sc.narration}"` : '',
+    `Media: ${sc.mediaSrc ? 'ada (props.media, ' + sc.mediaType + ')' : 'tidak ada'}.`,
+    t.err && t.code ? `\nPERCOBAAN SEBELUMNYA GAGAL:\n${t.err}\n\nKode sebelumnya:\n\`\`\`jsx\n${t.code.slice(0, 9000)}\n\`\`\`\nPerbaiki penyebabnya dan tulis ulang file lengkapnya.` : '',
+  ].filter(Boolean).join('\n');
+}
+const extractCode = (text) => { const m = /```(?:jsx|tsx|javascript|js|react)?\s*\n([\s\S]*?)```/.exec(String(text || '')); return (m ? m[1] : String(text || '')).trim(); };
+function lintCode(code) {
+  if (!/export\s+default/.test(code)) return 'Tidak ada `export default function Scene(props)`.';
+  for (const m of code.matchAll(/import\s[^;]*?from\s*['"]([^'"]+)['"]/g)) if (!['react', 'remotion'].includes(m[1])) return `Import "${m[1]}" tidak diizinkan — hanya 'react' dan 'remotion'.`;
+  const bad = [[/\brequire\s*\(/, 'require()'], [/\bimport\s*\(/, 'import() dinamis'], [/\bprocess\./, 'process'], [/\beval\s*\(/, 'eval'], [/new\s+Function\b/, 'new Function'], [/\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource/, 'akses jaringan'], [/\b(window|document|localStorage)\./, 'window/document'], [/Math\.random/, "Math.random (pakai random('seed') dari remotion)"]];
+  for (const [re, what] of bad) if (re.test(code)) return `Kode memakai ${what} — tidak diizinkan.`;
+  return null;
+}
+async function syntaxError(code) {
+  try { const { transform } = await import('esbuild'); await transform(code, { loader: 'jsx', jsx: 'automatic' }); return null; }
+  catch (e) { return 'Error sintaks: ' + String(e.message).split('\n').slice(0, 8).join(' ').slice(0, 700); }
+}
+async function prepareCustom(job, dir, sb, propsBase, stage) {
+  const targets = sb.creative === false ? [] : sb.scenes.map((sc, i) => ({ sc, i, id: 'c' + (i + 1), err: null, code: null, tries: 0 })).filter((t) => t.sc.custom).slice(0, 2);
+  if (!targets.length) return null;
+  fs.rmSync(GEN_DIR, { recursive: true, force: true }); fs.mkdirSync(GEN_DIR, { recursive: true });
+  const starts = []; let acc = 0; for (const sc of sb.scenes) { starts.push(acc); acc += sc.sec; }
+  const entryPoint = path.join(HERE, 'src', 'index.jsx'), publicDir = path.join(HERE, 'public');
+  let pending = targets.slice(), url = null, bundled = [];
+  const good = [];
+  for (let round = 0; round < CUSTOM_ROUNDS && pending.length; round++) {
+    stage(round);
+    for (const t of pending) {
+      t.tries++;
+      try {
+        const r = await api('llm', { system: CODE_SYSTEM, prompt: codePrompt(t, sb, job) });
+        let code = extractCode(r.text);
+        if (!/import\s+(\*\s+as\s+)?React\b/.test(code)) code = "import React from 'react';\n" + code;
+        t.code = code; t.err = lintCode(code) || (await syntaxError(code));
+      } catch (e) { t.err = 'AI tidak menjawab: ' + e.message; }
+    }
+    const cand = pending.filter((t) => t.code && !t.err);
+    if (cand.length) {
+      for (const t of cand) fs.writeFileSync(path.join(GEN_DIR, t.id + '.jsx'), t.code);
+      bundled = [...good, ...cand];
+      writeRegistry(bundled.map((t) => t.id));
+      try {
+        if (url) fs.rmSync(url, { recursive: true, force: true });
+        url = await bundle({ entryPoint, publicDir });
+        const sbTest = JSON.parse(JSON.stringify(sb)); for (const t of bundled) sbTest.scenes[t.i].customId = t.id;
+        const props = { ...propsBase, sb: sbTest, strictCustom: true }; // validasi: error tidak ditutupi template
+        const comp = await selectComposition({ serveUrl: url, id: 'Video', inputProps: props, browserExecutable: BROWSER });
+        for (const t of cand) {
+          try {
+            for (const f of [0.15, 0.55, 0.92]) {
+              const frame = Math.min(comp.durationInFrames - 1, Math.round((starts[t.i] + t.sc.sec * f) * FPS));
+              const out = path.join(dir, `cek-${t.id}.jpg`);
+              await renderStill({ composition: comp, serveUrl: url, output: out, inputProps: props, frame, imageFormat: 'jpeg', jpegQuality: 60, scale: 0.25, browserExecutable: BROWSER, timeoutInMilliseconds: 45000 });
+              if (fs.statSync(out).size < 2500) throw new Error(`frame di ${Math.round(f * 100)}% durasi terlihat kosong (hampir satu warna) — pastikan ada isi yang terlihat sepanjang adegan`);
+            }
+            good.push(t);
+          } catch (e) { t.err = 'Error saat dirender: ' + String(e.message).split('\n').slice(0, 8).join(' ').slice(0, 700); }
+        }
+      } catch (e) { for (const t of cand) t.err = 'Error saat dibundel: ' + String(e.message).split('\n').slice(0, 8).join(' ').slice(0, 700); }
+    }
+    pending = pending.filter((t) => !good.includes(t));
+    for (const t of pending) log(`  adegan ${t.i + 1} (kustom) percobaan ${t.tries} gagal: ${t.err}`);
+  }
+  for (const t of targets) log(`  adegan ${t.i + 1}: ${good.includes(t) ? 'animasi buatan AI ✓' : 'kembali ke template ' + t.sc.t}`);
+  if (!good.length) { if (url) fs.rmSync(url, { recursive: true, force: true }); return null; }
+  if (bundled.length !== good.length) { // bundel terakhir masih memuat kode yang gagal → bundel ulang hanya yang lolos
+    for (const t of bundled) if (!good.includes(t)) fs.rmSync(path.join(GEN_DIR, t.id + '.jsx'), { force: true });
+    writeRegistry(good.map((t) => t.id));
+    if (url) fs.rmSync(url, { recursive: true, force: true });
+    url = await bundle({ entryPoint, publicDir });
+  }
+  for (const t of good) { sb.scenes[t.i].customId = t.id; sb.scenes[t.i].customOk = true; }
+  return url;
 }
 
 /* ------------------------------------------------------------ aset dari Boss */
@@ -298,14 +406,20 @@ async function processJob(job, upload) {
     await prepareMedia(job, dir, sb);
     await progress(0.05, 'narasi');
     const { voice, words } = await prepareVoice(job, dir, sb);
-    await progress(0.08, 'render');
-    const r = await renderJob(job, dir, sb, { imageUrl, voice, words }, (p) => progress(0.08 + p * 0.85, 'render'));
+    let customUrl = null;
+    try { customUrl = await prepareCustom(job, dir, sb, baseProps(job, sb, { imageUrl, voice, words }), (round) => progress(0.06 + round * 0.01, 'kode')); }
+    catch (e) { log('  adegan kustom dilewati:', e.message); }
+    finally { writeRegistry([]); } // bundel dasar tetap tanpa kode AI
+    await progress(0.1, 'render');
+    let r;
+    try { r = await renderJob(job, dir, sb, { imageUrl, voice, words, serveUrl: customUrl }, (p) => progress(0.1 + p * 0.83, 'render')); }
+    finally { if (customUrl) fs.rmSync(customUrl, { recursive: true, force: true }); }
     await progress(0.95, 'upload');
     const slug = String(sb.title || 'video').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 50) || 'video';
     const file = await uploadFile(r.out, `${slug}.mp4`, 'video/mp4', upload.mode, upload.auth);
     const thumb = await uploadFile(r.thumb, `${slug}-thumb.jpg`, 'image/jpeg', upload.mode, upload.auth).catch(() => null);
     // URL lokal (127.0.0.1) tidak berguna di luar VPS → buang dari naskah yang dikembalikan
-    for (const sc of sb.scenes) { delete sc.mediaSrc; delete sc.mediaType; delete sc.own; }
+    for (const sc of sb.scenes) { delete sc.mediaSrc; delete sc.mediaType; delete sc.own; delete sc.customId; }
     sb.narrated = !!voice;
     await api('done', { id: job.id, file, thumb, duration: r.duration, sb });
     log(`  selesai dalam ${Math.round((Date.now() - t0) / 1000)} dtk → ${file.url}`);
@@ -391,6 +505,7 @@ async function testMode(args) {
 async function main() {
   const args = process.argv.slice(2);
   if (!BROWSER) await ensureBrowser();
+  writeRegistry([]); // sisa job yang terhenti tidak boleh ikut ke bundel dasar
   if (args.includes('--test')) return testMode(args);
   if (!VO_URL || !SECRET) { console.error('VO_URL dan RENDER_WORKER_SECRET wajib diisi (lihat /etc/visual-office-worker.env)'); process.exit(1); }
   await startAssetServer();

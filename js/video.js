@@ -61,7 +61,7 @@
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Antrean render: HTTP ' + r.status);
     item.jobId = j.id; item.engine = 'remotion'; VO.app.changed();
-    const STAGE = { antre: 'antre', mulai: 'render', media: 'media', narasi: 'narasi', render: 'render', upload: 'upload' };
+    const STAGE = { antre: 'antre', mulai: 'render', media: 'media', narasi: 'narasi', kode: 'kode', render: 'render', upload: 'upload' };
     let lastP = -1;
     for (;;) {
       await new Promise((res) => setTimeout(res, 3000));
@@ -451,7 +451,7 @@
       const fin = item.storyboard || sb;
       item.pack = fin.pack;
       item.status = item.schedule ? 'scheduled' : 'draft'; item.stage = ''; item.progress = 1;
-      const script = fin.scenes.map((x, i) => `${i + 1}. **${x.t}** (${x.sec} dtk) — ${x.title || x.text || x.label || ''}${x.items && x.items.map ? ' · ' + x.items.map((q) => (typeof q === 'string' ? q : `${q.label} ${q.value}`)).join(', ') : ''}${x.value != null && x.t === 'stat' ? ' · ' + x.value + ' ' + (x.unit || '') : ''}${x.narration ? `\n   _“${x.narration}”_` : ''}`).join('\n');
+      const script = fin.scenes.map((x, i) => `${i + 1}. **${x.t}** (${x.sec} dtk) — ${x.title || x.text || x.label || ''}${x.items && x.items.map ? ' · ' + x.items.map((q) => (typeof q === 'string' ? q : `${q.label} ${q.value}`)).join(', ') : ''}${x.value != null && x.t === 'stat' ? ' · ' + x.value + ' ' + (x.unit || '') : ''}${x.customOk ? ' · ✨ animasi buatan AI' : ''}${x.narration ? `\n   _“${x.narration}”_` : ''}`).join('\n');
       const doc = VO.addDoc(s, { kind: 'work', title: 'Video: ' + sb.title, author: div ? 'Divisi ' + div.name : 'Tim Kreatif', taskId: task.id, content: `## ${sb.title}\n\n**Caption:** ${sb.caption}\n\n### Naskah per adegan\n${script}` });
       doc.file = item.file; item.docId = doc.id;
       VO.sim.say(who, '🎬 Video siap — cek Galeri!', 4, 'check');

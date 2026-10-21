@@ -44,6 +44,7 @@
     editorial: { label: 'Editorial — gaya majalah, serif besar, blok warna', theme: { bg1: '#fbf7ef', bg2: '#f1e9da', accent: '#d7263d', text: '#141414' } },
     playful: { label: 'Playful — pastel, bulat, stiker & emoji', theme: { bg1: '#ffe5ec', bg2: '#d7f2ff', accent: '#7b2cbf', text: '#2b2140' } },
   };
+  B.MAX_CUSTOM = 2; // adegan dengan animasi yang kodenya ditulis AI (tingkat 2)
   B.MUSIC = { upbeat: 'Ceria / energik', calm: 'Tenang / lo-fi', drama: 'Dramatis / sinematik', none: 'Tanpa musik' };
   B.VOICES = { female: 'Narasi suara perempuan', male: 'Narasi suara laki-laki', none: 'Tanpa narasi' };
 
@@ -65,6 +66,7 @@
     sc.title = str(x.title || x.headline, 80); sc.sub = str(x.sub, 110); sc.kicker = str(x.kicker, 30);
     sc.narration = str(x.narration || x.vo, 260);
     if (x.media) sc.media = str(x.media, 60);
+    if (x.custom) sc.custom = str(x.custom, 300); // ide animasi khusus → worker meminta AI menulis kode Remotion-nya
     if (x.asset != null) { const n = parseInt(x.asset, 10); if (n >= 1 && n <= 12) sc.asset = n; } // aset dari Boss (nomor 1..N)
     if (t === 'stat') { sc.value = num(x.value); sc.unit = str(x.unit, 12); sc.prefix = str(x.prefix, 6); sc.label = str(x.label || x.sub, 90); sc.decimals = Math.max(0, Math.min(2, Number(x.decimals) || ((String(x.value).match(/[.,](\d+)$/) || [, ''])[1].length))); }
     if (t === 'compare') { sc.unit = str(x.unit, 10); sc.items = (Array.isArray(x.items) ? x.items : []).slice(0, 4).map((i) => ({ label: str(i && i.label, 22), value: num(i && i.value), note: str(i && i.note, 26) })).filter((i) => i.label); sc.highlight = Number(x.highlight) || 0; if (sc.items.length < 2) return null; }
@@ -112,6 +114,14 @@
       // masih ada sisa → adegan media singkat sebelum penutup
       for (const i of free) scenes.splice(scenes.length - 1, 0, { t: 'media', sec: 2.5, title: '', sub: '', kicker: '', narration: '', asset: i });
     }
+    // tingkat 2: maksimal 2 adegan dengan animasi buatan AI; bila AI tidak memilih, adegan pembuka dijadikan kustom
+    const creative = o.creative !== false && o.creative !== 'off';
+    if (!creative) scenes.forEach((x) => delete x.custom);
+    else {
+      let n = 0;
+      scenes.forEach((x) => { if (x.custom && ++n > B.MAX_CUSTOM) delete x.custom; });
+      if (!n && scenes[0]) scenes[0].custom = 'Hook pembuka yang mencolok dan unik untuk judul ini — tipografi kinetik / ilustrasi bergerak yang tidak ada di template';
+    }
     const pack = B.PACKS[o.pack] ? o.pack : B.PACKS[sb.pack] ? sb.pack : 'bold';
     const th = {}, d = B.PACKS[pack].theme; // warna selalu dari paket visual agar tampilannya konsisten
     return {
@@ -119,7 +129,7 @@
       theme: { bg1: hex(th.bg1, d.bg1), bg2: hex(th.bg2, d.bg2), accent: hex(th.accent, d.accent), text: hex(th.text, d.text) },
       music: B.MUSIC[o.music] ? o.music : B.MUSIC[sb.music] ? sb.music : 'upbeat',
       voice: B.VOICES[o.voice] ? o.voice : 'female',
-      caption: str(sb.caption, 900) || str(o.brief, 200), scenes,
+      caption: str(sb.caption, 900) || str(o.brief, 200), creative, scenes,
     };
   };
 
@@ -150,6 +160,7 @@
       '  {"t":"quote","text":"…","author":"…","narration":"…"}, {"t":"countdown","from":3,"label":"…","narration":"…"},',
       '  {"t":"versus","title":"…","left":{"label":"Mitos","items":["…"]},"right":{"label":"Fakta","items":["…"]},"narration":"…"},',
       '  {"t":"image","title":"…","sub":"…","asset":1,"narration":"…"}, {"t":"price","title":"…","price":"Rp…","old":"…","narration":"…"}, {"t":"cta","title":"…","sub":"akun","narration":"…"} ]}',
+      o.creative === false || o.creative === 'off' ? '' : 'ANIMASI KHUSUS: pilih 1–2 adegan terpenting (mis. hook pembuka atau visualisasi angka) dan beri field "custom": deskripsi singkat ide animasi yang unik & tidak bisa dibuat template biasa (mis. "angka 2,9 Wh mengisi baterai yang meledak jadi 10 bohlam", "kata KERTAS terbakar lalu berubah jadi layar HP"). Adegan itu tetap diisi field template lengkap sebagai cadangan.',
       'Pakai 4–7 adegan, variasikan template (jangan monoton), sertakan minimal 1 adegan "media", akhiri dengan cta. Angka harus masuk akal; bila tidak yakin sebut "perkiraan".',
     ].filter(Boolean).join('\n');
     return { system, prompt };
