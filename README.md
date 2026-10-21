@@ -1,7 +1,14 @@
 # Visual Office — Kantor Agent AI
 
-Visualisasi kantor **isometrik 2.5D** (gaya pixel ala Habbo) yang karyawannya adalah **agent AI** (ditenagai Gemini, gratis). Mirip `claude-office`, tapi milikmu sendiri: kamu bisa
-mengatur bentuk kantor, menambah **divisi**, **departemen**, merekrut **agen**, dan ada **Boss** yang memberi perintah.
+![Demo Visual Office: Boss memberi perintah, karyawan AI rapat dan mulai bekerja](demo.gif)
+
+**[▶ Coba live demo](https://visual-office.vercel.app)**
+
+- 🤖 **Kantor berisi agent AI**: beri perintah sebagai Boss, lalu Direktur → Ketua Tim → Staf akan briefing, bekerja, dan melapor balik secara berjenjang.
+- 📊 **Terhubung ke data bisnis nyata**: agen membaca data aplikasi MiniMarket & Gudang untuk menyusun laporan stok dan penjualan.
+- 🎬 **Lebih dari sekadar chat**: render 3D (three.js), perintah lewat bot Telegram, sampai pembuatan video MP4 otomatis dengan Remotion.
+
+Visualisasi kantor **isometrik 2.5D** (gaya pixel ala Habbo) yang karyawannya adalah **agent AI** (ditenagai Gemini, gratis). Kamu bisa mengatur bentuk kantor, menambah **divisi**, **departemen**, merekrut **agen**, dan ada **Boss** yang memberi perintah.
 
 ## Fitur
 
