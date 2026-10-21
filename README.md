@@ -62,7 +62,7 @@ Lalu centang **Mode AI nyata** di bar atas. Tanpa API key, aplikasi tetap jalan 
 ### Opsi C — deploy ke Vercel
 Proyek ini siap Vercel tanpa konfigurasi build: file statis + Vercel Functions di `api/` (`api/health.js`, `api/run.js`).
 
-1. Di [vercel.com/new](https://vercel.com/new) → **Import** repo `visual-offine` dari GitHub.
+1. Di [vercel.com/new](https://vercel.com/new) → **Import** repo `visual-office` dari GitHub.
 2. **Framework Preset:** `Other` (sudah dipaksa lewat `vercel.json`). Build Command & Output Directory biarkan default.
 3. **Environment Variables:** tambahkan `GEMINI_API_KEY` = kunci dari Google AI Studio (centang Production & Preview).
 4. **Database akun:** project → **Storage → Create Database → Upstash for Redis → Connect**
@@ -95,7 +95,7 @@ kuota, beri tugas per tim atau pakai model Flash-Lite.
 ### Hubungkan Claude Code (live)
 1. Jalankan `npm start`.
 2. Salin isi `hooks/settings.example.json` ke `~/.claude/settings.json` (atau `.claude/settings.json` di proyekmu),
-   ganti `/PATH/KE/visual-offine` dengan lokasi folder ini.
+   ganti `/PATH/KE/visual-office` dengan lokasi folder ini.
 3. Pakai Claude Code seperti biasa — setiap sesi muncul di divisi **Live · Claude Code**.
 
 Hook tidak pernah memblokir Claude Code (timeout 1,5 detik, selalu exit 0). Ubah alamat server dengan `VISUAL_OFFICE_URL`.
