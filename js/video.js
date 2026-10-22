@@ -214,6 +214,7 @@
   };
   T.bullets = listT(false);
   T.media = (F, P, sc, lt) => T.title(F, P, sc, lt); // foto/video stok hanya di server video
+  T.device = (F, P, sc, lt, img) => T.image(F, P, sc, lt, img); // mockup HP hanya di server video
   T.steps = listT(true);
   T.quote = (F, P, sc, lt) => {
     const { ctx, k, cx, H } = F;

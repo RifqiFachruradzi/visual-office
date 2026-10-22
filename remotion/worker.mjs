@@ -279,6 +279,11 @@ const CODE_SYSTEM = [
   '- Akar komponen <AbsoluteFill>. Latar paket sudah digambar di bawah; boleh ditimpa dengan latar sendiri.',
   '- Teks dari scene dipakai persis (bahasa Indonesia), harus terbaca (kontras), tidak keluar layar, tidak bertumpuk. Pakai fonts.head untuk judul.',
   '- Ilustrasi dibuat dari div / SVG inline (ikon, grafik, partikel, bentuk) — kreatif, bukan sekadar teks muncul. Bila media ada, tampilkan dengan <Img> / <OffthreadVideo muted>.',
+  'STANDAR DESAIN (agar terlihat seperti iklan profesional, bukan slide):',
+  '- Satu fokus utama per adegan; judul besar (± 8–11% dari lebar), pakai ruang layar penuh — tidak ada area kosong besar, tapi beri jarak napas di tepi (± 6% lebar).',
+  '- Maksimal 3 warna dari theme + putih/hitam; kontras teks tinggi; bayangan lembut untuk kedalaman.',
+  '- Ritme: elemen masuk bertahap di 0–30% durasi (spring/Easing.out), aksen/puncak di tengah (angka berhitung, ikon memantul, garis tergambar), tetap bergerak halus sampai akhir (parallax / zoom pelan). Hindari kedip & gerak acak.',
+  '- Ilustrasikan ide secara literal & jelas dengan bentuk/ikon SVG sederhana yang rapi (garis tebal, sudut membulat), bukan dekorasi acak.',
   '- Maksimal ±180 baris. Balas HANYA kode dalam satu blok ```jsx.',
 ].join('\n');
 function codePrompt(t, sb, job) {

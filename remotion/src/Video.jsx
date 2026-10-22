@@ -10,7 +10,7 @@
  * ========================================================================= */
 import React, { useEffect, useState } from 'react';
 import {
-  AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, continueRender, delayRender,
+  AbsoluteFill, Audio, Easing, Img, OffthreadVideo, Sequence, continueRender, delayRender,
   interpolate, random, spring, useCurrentFrame, useVideoConfig,
 } from 'remotion';
 
@@ -137,15 +137,30 @@ function Card({ children, style, accent }) {
 }
 
 /* ------------------------------------------------------------ latar per paket */
-function Background({ sceneIndex, start }) {
+// sentuhan akhir di atas latar: butiran halus + vignette (membuat gambar terasa "sinematik", tidak datar)
+const GRAIN = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")`;
+function Background(props) {
+  const L = useL();
+  return (
+    <>
+      <BackgroundBase {...props} />
+      <AbsoluteFill style={{ backgroundImage: GRAIN, opacity: L.dark ? 0.07 : 0.05, mixBlendMode: 'overlay' }} />
+      <AbsoluteFill style={{ background: `radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0,0,0,${L.dark ? 0.38 : 0.1}) 100%)` }} />
+    </>
+  );
+}
+function BackgroundBase({ sceneIndex, start }) {
   const L = useL(), f = useCurrentFrame(), { W, H, k } = L, t = (f + start) / FPS; // t: waktu absolut (latar mengalir antar-adegan)
   const p = L.pack;
   if (p.bg === 'blobs') {
-    const blobs = [0, 1, 2].map((i) => {
-      const x = W * (0.2 + 0.6 * ((Math.sin(t * 0.25 + i * 2.1) + 1) / 2)), y = H * (0.15 + 0.7 * ((Math.cos(t * 0.2 + i * 1.7) + 1) / 2)), r = (380 + i * 120) * k;
-      return <div key={i} style={{ position: 'absolute', left: x - r / 2, top: y - r / 2, width: r, height: r, borderRadius: '50%', background: i === 1 ? L.accent : '#ffffff', opacity: i === 1 ? 0.18 : 0.06, filter: `blur(${90 * k}px)` }} />;
-    });
-    return <AbsoluteFill style={{ background: `linear-gradient(160deg, ${L.bg1} 0%, ${L.bg2} 100%)`, overflow: 'hidden' }}>{blobs}</AbsoluteFill>;
+    const gx = 70 + Math.sin(t * 0.3 + sceneIndex) * 12, gy = 18 + Math.cos(t * 0.25) * 8;
+    return (
+      <AbsoluteFill style={{ background: `linear-gradient(165deg, ${L.bg1} 0%, ${L.bg2} 110%)`, overflow: 'hidden' }}>
+        <AbsoluteFill style={{ background: `radial-gradient(circle at ${gx}% ${gy}%, ${alpha(L.accent, 0.32)} 0%, transparent 42%)` }} />
+        <AbsoluteFill style={{ background: `radial-gradient(circle at ${100 - gx}% ${100 - gy}%, ${alpha('#6aa0ff', 0.16)} 0%, transparent 45%)` }} />
+        <div style={{ position: 'absolute', left: '-20%', right: '-20%', top: `${(t * 6) % 140 - 20}%`, height: 2 * k, background: alpha(L.accent, 0.25), transform: 'rotate(-12deg)' }} />
+      </AbsoluteFill>
+    );
   }
   if (p.bg === 'paper') {
     return (
@@ -218,7 +233,7 @@ T.title = ({ sc }) => {
       {onMedia ? <MediaFill src={sc.mediaSrc} type={sc.mediaType} sec={sc.sec} dim={0.5} /> : null}
       <Stack>
         <Kicker text={sc.kicker} align={align} />
-        <Headline text={sc.title} size={L.vert ? 84 : 72} align={align} accentLast={L.pack.enter !== 'glitch'} color={onMedia ? '#ffffff' : undefined} />
+        <Headline text={sc.title} size={L.vert ? 92 : 76} align={align} accentLast={L.pack.enter !== 'glitch'} color={onMedia ? '#ffffff' : undefined} />
         <div style={{ height: 10 * L.k, width: `${bar * (align === 'left' ? 30 : 40)}%`, background: L.accent, margin: `${28 * L.k}px ${align === 'left' ? '0' : 'auto'}`, borderRadius: 99, boxShadow: L.pack.bg === 'grid' ? `0 0 ${16 * L.k}px ${L.accent}` : 'none' }} />
         <Body text={sc.sub} size={38} align={align} color={onMedia ? '#ffffff' : undefined} />
       </Stack>
@@ -454,19 +469,80 @@ T.price = ({ sc }) => {
 
 T.cta = ({ sc, brand }) => {
   const L = useL(), f = useCurrentFrame(), { fps } = useVideoConfig(), k = L.k;
-  const s = spring({ frame: f - 14, fps, config: { damping: 11 } });
-  const pulse = 1 + Math.sin((f / fps) * 6) * 0.04;
-  const label = (sc.sub || brand || 'FOLLOW').slice(0, 22);
+  const m = spring({ frame: f - 2, fps, config: { damping: 12 } });
+  const s = spring({ frame: f - 16, fps, config: { damping: 11 } });
+  const ring = (f % 45) / 45;
+  const action = sc.action || 'Coba sekarang';
+  const handle = sc.sub || brand || '';
+  const mark = (String(brand || handle || 'A').replace(/^@/, '').trim()[0] || 'A').toUpperCase();
+  const pill = L.pack.radius ? 99 : 0;
   return (
-    <Stack>
-      <Headline text={sc.title || 'Follow untuk info berikutnya!'} size={L.vert ? 70 : 58} accentLast />
-      <div style={{ alignSelf: 'center', marginTop: (L.vert ? 80 : 50) * k, transform: `scale(${s * pulse})` }}>
-        <div style={{ background: L.accent, color: L.onAccent, padding: `${26 * k}px ${56 * k}px`, borderRadius: L.pack.radius ? 99 : 0, fontFamily: `"${L.pack.head}"`, fontWeight: L.pack.hw, fontSize: 42 * k, boxShadow: L.pack.bg === 'grid' ? `0 0 ${30 * k}px ${L.accent}` : L.pack.card === 'sticker' ? `0 ${8 * k}px 0 ${L.text}` : `0 ${14 * k}px ${30 * k}px rgba(0,0,0,0.25)`, border: L.pack.card === 'sticker' ? `${4 * k}px solid ${L.text}` : 'none', whiteSpace: 'nowrap' }}>
-          {label} {L.pack.bg === 'blocks' ? '→' : '➜'}
+    <Stack style={{ alignItems: 'center', textAlign: 'center' }}>
+      <div style={{ width: 128 * k, height: 128 * k, borderRadius: L.pack.radius ? 34 * k : 0, background: L.accent, color: L.onAccent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: `"${L.pack.head}"`, fontWeight: L.pack.hw, fontSize: 70 * k, transform: `scale(${m}) rotate(${(1 - m) * -20}deg)`, boxShadow: `0 ${18 * k}px ${40 * k}px ${alpha('#000000', 0.3)}`, marginBottom: 44 * k }}>{mark}</div>
+      <Headline text={sc.title || 'Coba sekarang juga!'} size={L.vert ? 76 : 62} accentLast />
+      <div style={{ position: 'relative', marginTop: (L.vert ? 70 : 44) * k, transform: `scale(${s})` }}>
+        <div style={{ position: 'absolute', inset: -10 * k * (1 + ring * 2), borderRadius: pill, border: `${3 * k}px solid ${L.accent}`, opacity: (1 - ring) * s * 0.7 }} />
+        <div style={{ background: L.accent, color: L.onAccent, padding: `${28 * k}px ${64 * k}px`, borderRadius: pill, fontFamily: `"${L.pack.head}"`, fontWeight: L.pack.hw, fontSize: 46 * k, whiteSpace: 'nowrap', boxShadow: L.pack.bg === 'grid' ? `0 0 ${30 * k}px ${L.accent}` : L.pack.card === 'sticker' ? `0 ${8 * k}px 0 ${L.text}` : `0 ${16 * k}px ${36 * k}px rgba(0,0,0,0.3)`, border: L.pack.card === 'sticker' ? `${4 * k}px solid ${L.text}` : 'none' }}>
+          {action} →
         </div>
       </div>
-      {L.pack.bg === 'confetti' || L.pack.bg === 'blobs' ? <div style={{ alignSelf: 'center', fontSize: 90 * k, marginTop: 20 * k, marginLeft: 260 * k, transform: `translateY(${Math.sin((f / fps) * 8) * 12 * k}px)`, opacity: s }}>👆</div> : null}
+      {handle ? <Body text={handle} size={34} delay={0.9} style={{ marginTop: 34 * k, fontWeight: 700 }} /> : null}
     </Stack>
+  );
+};
+
+// layar aplikasi / website di dalam mockup HP + label fitur yang muncul bergantian
+T.device = ({ sc, imageUrl }) => {
+  const L = useL(), f = useCurrentFrame(), { fps } = useVideoConfig(), k = L.k;
+  const dur = sc.sec * fps;
+  const src = sc.own ? sc.mediaSrc : imageUrl || sc.mediaSrc;
+  const isVid = sc.own && sc.mediaType === 'video';
+  const rise = spring({ frame: f - 3, fps, config: { damping: 16 } });
+  const scroll = interpolate(f, [dur * 0.3, dur * 0.95], [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) });
+  const zoom = interpolate(f, [0, dur], [1, 1.06], clamp);
+  const ph = L.vert ? 350 * k * 2.06 : L.H * 0.82, pw = L.vert ? 350 * k : ph / 2.06; // 16:9: HP setinggi ±82% layar
+  const phone = (
+    <div style={{ width: pw, height: ph, borderRadius: 56 * k * (pw / (350 * k)), background: '#0b0f14', padding: 12 * k, boxSizing: 'border-box', boxShadow: `0 ${40 * k}px ${80 * k}px rgba(0,0,0,0.45), inset 0 0 0 ${2 * k}px #2a333b`, transform: `translateY(${(1 - rise) * 160 * k}px) rotate(${(1 - rise) * 6}deg)`, flex: 'none', position: 'relative' }}>
+      <div style={{ width: '100%', height: '100%', borderRadius: 44 * k * (pw / (350 * k)), overflow: 'hidden', background: '#fff', position: 'relative' }}>
+        {src && isVid ? <OffthreadVideo src={src} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : src ? <Img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `50% ${scroll * 100}%`, transform: `scale(${zoom})` }} />
+          : <div style={{ width: '100%', height: '100%', background: `linear-gradient(160deg, ${L.bg2}, ${L.accent})` }} />}
+        <div style={{ position: 'absolute', top: 10 * k, left: '50%', width: pw * 0.3, height: 26 * k, marginLeft: -pw * 0.15, borderRadius: 99, background: '#0b0f14' }} />
+      </div>
+    </div>
+  );
+  const chips = (sc.items || []).map((it, i) => {
+    const d = Math.round(dur * (0.28 + i * 0.2));
+    const c = spring({ frame: f - d, fps, config: { damping: 12 } });
+    const left = i % 2 === 0;
+    const pos = L.vert ? { position: 'absolute', top: `${34 + i * 19}%`, [left ? 'left' : 'right']: 22 * k } : {};
+    return (
+      <div key={i} style={{ ...pos, transform: `scale(${c})`, opacity: c, transformOrigin: left ? 'left center' : 'right center', maxWidth: (L.vert ? 330 : 460) * k, background: L.accent, color: L.onAccent, padding: `${14 * k}px ${22 * k}px`, borderRadius: L.pack.radius ? 18 * k : 0, fontFamily: `"${L.pack.body}"`, fontWeight: 800, fontSize: 28 * k, lineHeight: 1.2, boxShadow: `0 ${12 * k}px ${28 * k}px rgba(0,0,0,0.35)`, display: 'flex', alignItems: 'center', gap: 10 * k, marginBottom: L.vert ? 0 : 16 * k }}>
+        <span style={{ width: 12 * k, height: 12 * k, borderRadius: 99, background: L.onAccent, flex: 'none' }} />{it}
+      </div>
+    );
+  });
+  if (!L.vert) {
+    return (
+      <AbsoluteFill>
+        <div style={{ position: 'absolute', left: L.W * 0.1, top: (L.H - ph) / 2 }}>{phone}</div>
+        <div style={{ position: 'absolute', left: L.W * 0.1 + pw + 80 * k, right: L.padX * 0.6, top: L.top, bottom: L.bottom, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Kicker text={sc.kicker} align="left" />
+          <Headline text={sc.title} size={58} align="left" delay={0.2} />
+          <Body text={sc.sub} size={30} align="left" delay={0.6} style={{ marginTop: 16 * k }} />
+          <div style={{ marginTop: 26 * k, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>{chips}</div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+  return (
+    <AbsoluteFill>
+      <div style={{ position: 'absolute', left: L.padX, right: L.padX, top: L.top }}>
+        <Headline text={sc.title} size={58} delay={0.15} />
+      </div>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: L.top + 190 * k, display: 'flex', justifyContent: 'center' }}>{phone}</div>
+      {chips}
+    </AbsoluteFill>
   );
 };
 
@@ -488,7 +564,8 @@ function Transition({ children, sec, last, index }) {
     case 'zoom': { const s = spring({ frame: f, fps, config: { damping: 12 } }); style = { transform: `scale(${(0.8 + 0.2 * s) * (1 + tout * 0.12)})`, opacity: Math.min(1, tin * 1.5) * (1 - tout) }; break; }
     default: break;
   }
-  return <AbsoluteFill style={style}>{children}</AbsoluteFill>;
+  const push = 1 + 0.035 * Math.min(1, f / dur); // kamera mendorong pelan → gambar tidak terasa diam
+  return <AbsoluteFill style={style}><AbsoluteFill style={{ transform: `scale(${push})` }}>{children}</AbsoluteFill></AbsoluteFill>;
 }
 
 /* ------------------------------------------------------------ subtitle kata per kata */
