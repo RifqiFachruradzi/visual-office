@@ -53,7 +53,7 @@
     '- Teks di layar BUKAN salinan narasi: teks layar = kata kunci singkat (judul maks 6 kata, poin maks 4 kata); narasi = kalimat lisan lengkap.',
     '- Spesifik: pakai fitur, angka, nama, dan situasi nyata dari brief & riset. DILARANG kalimat generik seperti "kualitas terjamin", "harga bersahabat", "solusi terbaik", "kenapa harus ini?", "poin penting".',
     '- Satu adegan = satu ide. Jangan menumpuk lebih dari 3 poin dalam satu adegan.',
-    '- Tulis MANFAAT, bukan fitur: "Stok selalu cocok tanpa hitung ulang" lebih baik dari "Fitur stok real-time".',
+    '- Tulis MANFAAT, bukan fitur: "Pulang kerja tetap bisa masak dalam 10 menit" lebih baik dari "Kompor 2 tungku"; "Tagihan terkirim otomatis tiap bulan" lebih baik dari "Fitur invoice otomatis".',
     '- Penutup cta: "title" = janji utama, "action" = tombol ajakan berupa kata kerja (mis. "Coba gratis", "Pesan sekarang", "Hubungi kami") — BUKAN nama brand, "sub" = akun / website.',
   ];
   B.MAX_CUSTOM = 2; // adegan dengan animasi yang kodenya ditulis AI (tingkat 2)
@@ -178,7 +178,7 @@
       '  {"t":"versus","title":"…","left":{"label":"Mitos","items":["…"]},"right":{"label":"Fakta","items":["…"]},"narration":"…"},',
       '  {"t":"image","title":"…","sub":"…","asset":1,"narration":"…"}, {"t":"device","title":"maks 6 kata","items":["label fitur","…"],"asset":1,"narration":"…","sec":4.5},',
       '  {"t":"price","title":"…","price":"Rp…","old":"…","narration":"…"}, {"t":"cta","title":"janji utama maks 6 kata","action":"Coba gratis","sub":"@akun / website","narration":"…"} ]}',
-      o.creative === false || o.creative === 'off' ? '' : 'ANIMASI KHUSUS: pilih 1–2 adegan terpenting (mis. hook pembuka atau visualisasi angka) dan beri field "custom": deskripsi singkat ide animasi yang unik & tidak bisa dibuat template biasa (mis. "angka 2,9 Wh mengisi baterai yang meledak jadi 10 bohlam", "kata KERTAS terbakar lalu berubah jadi layar HP"). Adegan itu tetap diisi field template lengkap sebagai cadangan.',
+      o.creative === false || o.creative === 'off' ? '' : 'ANIMASI KHUSUS: pilih 1–2 adegan terpenting (mis. hook pembuka atau visualisasi angka) dan beri field "custom": deskripsi singkat ide animasi yang unik & tidak bisa dibuat template biasa (mis. "angka 2,9 Wh mengisi baterai yang meledak jadi 10 bohlam", "tumpukan tagihan menyusut jadi satu notifikasi di HP", "gelas kopi terisi sambil harga turun dari Rp25 rb ke Rp18 rb") — ide HARUS berasal dari topik video ini, bukan meniru contoh. Adegan itu tetap diisi field template lengkap sebagai cadangan.',
       'Pakai 5–8 adegan, variasikan template (jangan monoton), akhiri dengan cta. Angka harus masuk akal; bila tidak yakin sebut "perkiraan". Jangan mengarang fitur yang tidak disebut di brief/riset.',
     ].filter(Boolean).join('\n');
     return { system, prompt };
