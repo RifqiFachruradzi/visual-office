@@ -61,7 +61,7 @@
     if (c.video) { // permintaan video → programmatic video, MP4 dikirim balik ke chat ini
       const divId = t.type === 'division' ? t.id : t.type === 'dept' ? (s.departments.find((d) => d.id === t.id) || {}).divisionId : t.type === 'agent' ? (s.agents.find((a) => a.id === t.id) || {}).divisionId : null;
       VO.log(s, `Permintaan video dari Telegram: "${c.title}"`, 'send');
-      const go = (image) => VO.gallery.start({ brief: c.title || 'Video tentang produk ini', divisionId: divId || null, image, telegram: c.chatId, style: c.photo && !c.title ? 'iklan' : undefined })
+      const go = (image) => VO.gallery.start({ brief: c.title || 'Video tentang produk ini', divisionId: divId || null, image, telegram: c.chatId, review: false, style: c.photo && !c.title ? 'iklan' : undefined }) // dari Telegram: langsung render
         .catch((e) => api('POST', { action: 'reply', chatId: c.chatId, text: '⚠️ Gagal membuat video: ' + e.message }).catch(() => {}));
       if (c.photo) fetch('/api/telegram?action=photo&id=' + encodeURIComponent(c.photo)).then((r) => (r.ok ? r.blob() : null)).catch(() => null).then(go);
       else go(null);

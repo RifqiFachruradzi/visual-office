@@ -48,15 +48,7 @@
     return v;
   };
   async function renderOnServer(item, sb, o, who) {
-    // semua aset Boss (foto/video) diunggah dulu → worker mengunduhnya dari penyimpanan
-    const assets = [];
-    for (const [i, f] of (o.files || []).entries()) {
-      item.stage = 'upload'; VO.app.changed();
-      const ext = (/\.(\w{2,5})$/.exec(f.name || '') || [, /video/.test(f.type) ? 'mp4' : 'jpg'])[1].toLowerCase();
-      const up = await VO.files.upload(f, `aset-${i + 1}.${ext}`);
-      if (up.localOnly) throw new Error('Aset video butuh penyimpanan cloud (Vercel Blob) agar bisa dipakai server video');
-      assets.push({ url: up.url, type: up.type });
-    }
+    const assets = (item.assets || []).filter((x) => x && !x.localOnly).map((x) => ({ url: x.url, type: x.type }));
     const r = await fetch('/api/office?render=enqueue', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sb, format: o.format, assets, telegram: o.telegram, itemId: item.id }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Antrean render: HTTP ' + r.status);
@@ -393,14 +385,20 @@
    * Buat video dari brief. o: { brief, style, format ('9:16'|'16:9'), duration, brand, cta, files: [File] (foto/video) atau image (Blob),
    *   divisionId, telegram: true|false|chatId, platforms:[…], schedule (ms) }  → item galeri
    */
-  V.create = function (o) { return new Promise((resolve, reject) => { V.queue.push({ o, resolve, reject }); pump(); }); };
+  V._blobs = new Map(); // aset tanpa penyimpanan cloud (hanya di browser ini)
+  const enqueue = (fn) => new Promise((resolve, reject) => { V.queue.push({ fn, resolve, reject }); pump(); });
+  /** Buat draf naskah (o.review === false → langsung dirender). → item galeri */
+  V.create = (o) => enqueue(() => run(o));
+  /** Render naskah item (setelah dicek / diedit Boss). */
+  V.produce = (id) => { const it = (VO.app.state.videos || []).find((v) => v.id === id); return it ? enqueue(() => produce(it)) : Promise.reject(new Error('Video tidak ditemukan')); };
   V.pending = () => V.queue.length + (V.busy ? 1 : 0);
   async function pump() {
     if (V.busy || !V.queue.length) return;
     V.busy = true;
-    const { o, resolve, reject } = V.queue.shift();
-    try { resolve(await run(o)); } catch (e) { reject(e); } finally { V.busy = false; pump(); }
+    const { fn, resolve, reject } = V.queue.shift();
+    try { resolve(await fn()); } catch (e) { reject(e); } finally { V.busy = false; pump(); }
   }
+  // Tahap 1 — DRAF: tim riset → AI menulis naskah → aset diunggah → status "Perlu dicek" (Boss mengedit di Galeri)
   async function run(o) {
     const s = VO.app.state;
     const div = V.creativeDivision(s, o.divisionId);
@@ -412,20 +410,52 @@
     if (!Array.isArray(o.files) || !o.files.length) o.files = o.image ? [o.image] : [];
     o.files = o.files.slice(0, 8);
     o.assets = o.files.map((f, i) => ({ kind: /^video\//.test(f.type) ? 'video' : 'photo', name: String(f.name || `aset ${i + 1}`).slice(0, 40) }));
-    o.image = o.files.find((f) => /^image\//.test(f.type)) || null; // render di browser hanya memakai satu foto
     const short = String(o.brief).replace(/^(tolong\s+)?(buat(kan)?|bikin(in|kan)?|siapkan|render|produksi)\s+(sebuah\s+)?video\s*/i, '').trim() || o.brief;
-    const item = V.addItem(s, { title: (short.charAt(0).toUpperCase() + short.slice(1)).slice(0, 90), status: 'producing', format: o.format, style: o.style, divisionId: div ? div.id : null, platforms: o.platforms || (o.format === '16:9' ? ['youtube'] : ['tiktok', 'instagram', 'youtube']), schedule: o.schedule || null });
+    const item = V.addItem(s, { title: (short.charAt(0).toUpperCase() + short.slice(1)).slice(0, 90), status: 'producing', format: o.format, style: o.style, divisionId: div ? div.id : null, brief: String(o.brief).slice(0, 2000), platforms: o.platforms || (o.format === '16:9' ? ['youtube'] : ['tiktok', 'instagram', 'youtube']), schedule: o.schedule || null, telegram: o.telegram == null || o.telegram === false ? null : o.telegram });
     try {
       // 1) tim mengerjakan riset & naskah kasar (alur kantor biasa)
       const task = VO.tasks.create({ title: `[Video] ${o.brief}`.slice(0, 300), targetType: div ? 'division' : 'all', targetId: div ? div.id : null });
       task.source = typeof o.telegram === 'number' || typeof o.telegram === 'string' ? 'telegram' : 'web';
       task.videoId = item.id; item.taskId = task.id;
       await waitTask(task);
-      // 2) naskah terstruktur
+      // 2) naskah terstruktur (AI)
       VO.sim.say(who, '🎬 Menyusun naskah per adegan…', 4); item.stage = 'naskah'; VO.app.changed();
       const sb = await V.storyboard(o, task.status === 'done' ? task.result : '');
-      item.title = sb.title; item.storyboard = sb; item.caption = sb.caption; item.stage = 'render';
-      // 3) render: server video (Remotion di VPS: narasi, subtitle, musik, foto stok) bila aktif, selain itu di browser
+      item.title = sb.title; item.storyboard = sb; item.caption = sb.caption;
+      // 3) aset diunggah sekarang → draf tetap utuh walau halaman dimuat ulang
+      item.assets = [];
+      for (const [i, f] of o.files.entries()) {
+        item.stage = 'upload'; VO.app.changed();
+        const ext = (/\.(\w{2,5})$/.exec(f.name || '') || [, /video/.test(f.type) ? 'mp4' : 'jpg'])[1].toLowerCase();
+        const up = await VO.files.upload(f, `aset-${i + 1}.${ext}`);
+        if (up.localOnly) V._blobs.set(up.url, f);
+        item.assets.push({ url: up.url, type: /^video\//.test(f.type) ? 'video' : 'photo', name: o.assets[i].name, localOnly: !!up.localOnly });
+      }
+      item.stage = ''; item.progress = 0;
+      if (o.review === false) return await produce(item);
+      item.status = 'review';
+      VO.sim.say(who, '🎬 Draf naskah siap — Boss, silakan dicek!', 5, 'check');
+      VO.log(s, `Draf naskah video "${sb.title}" siap dicek di Galeri (${sb.scenes.length} adegan)`, 'file');
+      VO.app.changed();
+      return item;
+    } catch (e) {
+      item.status = 'failed'; item.stage = ''; item.error = String(e.message || e); VO.app.changed();
+      throw e;
+    }
+  }
+
+  // Tahap 2 — PRODUKSI: naskah (yang sudah dicek/diedit Boss) dirender Remotion → Galeri, dokumen, Telegram
+  async function produce(item) {
+    const s = VO.app.state;
+    const div = s.divisions.find((d) => d.id === item.divisionId) || null;
+    const lead = div && (VO.director(s, div.id) || s.agents.find((a) => a.divisionId === div.id));
+    const who = lead ? lead.id : 'boss';
+    const sb = item.storyboard;
+    const o = { format: item.format, telegram: item.telegram };
+    item.status = 'producing'; item.stage = 'render'; item.progress = 0; item.error = '';
+    VO.app.changed();
+    try {
+      // render: server video (Remotion di VPS: narasi, subtitle, musik, foto stok) bila aktif, selain itu di browser
       const eng = await V.engine(true);
       let sentByServer = false, size = 0;
       if (eng.worker) {
@@ -433,15 +463,17 @@
         const job = await renderOnServer(item, sb, o, who);
         item.file = job.file; item.thumb = job.thumb; item.duration = job.duration; item.codec = 'h264';
         if (job.sb) { item.storyboard = job.sb; item.narrated = !!job.sb.narrated; }
-        sentByServer = o.telegram != null && o.telegram !== false; size = job.file.size;
+        sentByServer = o.telegram != null; size = job.file.size;
       } else {
         if (!V.supported()) throw new Error('Server video (VPS) sedang tidak aktif dan browser ini belum bisa membuat video — pakai Chrome/Edge terbaru.');
+        const photo = (item.assets || []).find((x) => x.type === 'photo');
+        let image = photo ? V._blobs.get(photo.url) || null : null;
+        if (photo && !image) image = await fetch(photo.url).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
         let lastP = -1;
-        const r = await V.render(sb, { format: o.format, image: o.image, onProgress: (f) => {
+        const r = await V.render(sb, { format: o.format, image, onProgress: (f) => {
           item.progress = f; const p = Math.round(f * 100);
           if (p >= lastP + 25) { lastP = p; VO.sim.say(who, `🎬 Render video ${p}%`, 3); }
         } });
-        // simpan: video + thumbnail
         const slug = sb.title.replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 50) || 'video';
         const ext = /mp4/.test(r.blob.type) ? 'mp4' : 'webm';
         item.stage = 'upload'; VO.app.changed();
@@ -450,16 +482,17 @@
         item.duration = Math.round(V.duration(sb)); item.codec = r.codec; item.engine = 'browser'; size = r.blob.size;
       }
       const fin = item.storyboard || sb;
-      item.pack = fin.pack;
+      item.pack = fin.pack; item.title = fin.title; item.caption = fin.caption;
       item.status = item.schedule ? 'scheduled' : 'draft'; item.stage = ''; item.progress = 1;
       const script = fin.scenes.map((x, i) => `${i + 1}. **${x.t}** (${x.sec} dtk) — ${x.title || x.text || x.label || ''}${x.items && x.items.map ? ' · ' + x.items.map((q) => (typeof q === 'string' ? q : `${q.label} ${q.value}`)).join(', ') : ''}${x.value != null && x.t === 'stat' ? ' · ' + x.value + ' ' + (x.unit || '') : ''}${x.customOk ? ' · ✨ animasi buatan AI' : ''}${x.narration ? `\n   _“${x.narration}”_` : ''}`).join('\n');
-      const doc = VO.addDoc(s, { kind: 'work', title: 'Video: ' + sb.title, author: div ? 'Divisi ' + div.name : 'Tim Kreatif', taskId: task.id, content: `## ${sb.title}\n\n**Caption:** ${sb.caption}\n\n### Naskah per adegan\n${script}` });
+      if (item.docId) s.docs = s.docs.filter((d) => d.id !== item.docId); // render ulang → naskah lama diganti
+      const doc = VO.addDoc(s, { kind: 'work', title: 'Video: ' + fin.title, author: div ? 'Divisi ' + div.name : 'Tim Kreatif', taskId: item.taskId || null, content: `## ${fin.title}\n\n**Caption:** ${fin.caption}\n\n### Naskah per adegan\n${script}` });
       doc.file = item.file; item.docId = doc.id;
       VO.sim.say(who, '🎬 Video siap — cek Galeri!', 4, 'check');
-      VO.log(s, `Video "${sb.title}" selesai (${item.duration} dtk, ${VO.files.fmtSize(size)}${item.engine === 'remotion' ? ', server video' : ''}) — masuk Galeri`, 'check');
+      VO.log(s, `Video "${fin.title}" selesai (${item.duration} dtk, ${VO.files.fmtSize(size)}${item.engine === 'remotion' ? ', server video' : ''}) — masuk Galeri`, 'check');
       VO.app.changed();
-      if (o.telegram != null && o.telegram !== false && !sentByServer) {
-        try { await VO.files.sendTelegram(item.file, `🎬 ${sb.title}\n\n${sb.caption}`, o.telegram === true ? undefined : o.telegram); }
+      if (o.telegram != null && !sentByServer) {
+        try { await VO.files.sendTelegram(item.file, `🎬 ${fin.title}\n\n${fin.caption}`, o.telegram === true ? undefined : o.telegram); }
         catch (e) { VO.ui.toast('Telegram: ' + e.message, 'alert'); }
       }
       return item;

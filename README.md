@@ -265,6 +265,7 @@ Tidak ada pengaturan sumber AI di aplikasi. Mode AI bisa dimatikan dari menu ⚙
 
 Video dibuat **lewat kode**, bukan diedit manual — seperti video explainer "ChatGPT 2,9 Wh vs Google 0,3 Wh".
 
+0. **Alur cek naskah** (bawaan dari web): AI menulis draf → video berstatus **Perlu dicek** di Galeri → Boss mengedit tiap adegan (template, teks, poin, angka, aset, durasi, narasi, animasi AI; urutan/tambah/hapus) → **Render video** → Remotion merender persis sesuai naskah itu. Perintah dari Telegram langsung dirender.
 1. **Beri tugas video**: tulis di *Perintah Boss* (mis. `buat video penjelasan biaya listrik AI`), klik **🎬 Buat video**, atau dari Telegram `/video …` / `@Sosmed buat video …` (bisa kirim foto + caption `/video …`).
 2. **Tim mengerjakan**: divisi Sosmed/Marketing/Konten (dicari otomatis dari nama divisi/departemen) briefing, riset & menulis naskah kasar seperti tugas biasa (animasi kantor).
 3. **Naskah terstruktur**: AI menyusun storyboard JSON — tiap adegan memakai satu **template** + isinya.

@@ -568,3 +568,23 @@ body.ruang { color-scheme: dark; }
 .ruang ::-webkit-scrollbar-thumb { background: #2f3a42; border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
 .ruang ::-webkit-scrollbar-thumb:hover { background-color: var(--accent); }
 .ruang ::-webkit-scrollbar-button { display: none; }
+
+/* editor naskah video (cek & edit sebelum render) */
+.ruang .eview { display: flex; flex-direction: column; gap: 12px; white-space: normal; }
+.ruang .eview .muted { margin: 0; font-size: 13px; }
+.ruang .egrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.ruang .ef { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+.ruang .ef.wide { grid-column: 1 / -1; }
+.ruang .ef input, .ruang .ef select, .ruang .ef textarea { width: 100%; color: var(--text); font-size: 13px; padding: 7px 9px; }
+.ruang .escenes { display: flex; flex-direction: column; gap: 10px; }
+.ruang .escene { background: var(--card); border: 1px solid var(--line-2); border-radius: 14px; padding: 10px 12px; }
+.ruang .eshead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.ruang .eshead > b { width: 26px; height: 26px; border-radius: 8px; background: var(--sel-bg); color: var(--accent); display: grid; place-items: center; font-size: 12px; }
+.ruang .eshead select { width: auto; }
+.ruang .esec { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.ruang .esec input { width: 64px; }
+.ruang .esbody { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 10px; }
+.ruang .gs.review { color: var(--accent); border-color: #5a4518; }
+.ruang #resultBody .eview ~ * { display: none; }
+.ruang .eview > .btns { position: sticky; bottom: -12px; margin: 0 -12px -12px; padding: 12px; background: var(--input); border-top: 1px solid var(--line-2); display: flex; gap: 8px; z-index: 1; }
+.ruang .eview > .btns .spacer { flex: 1; }

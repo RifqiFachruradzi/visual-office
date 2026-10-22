@@ -11,7 +11,7 @@
   const esc = (s) => VO.esc(s);
   const G = (VO.gallery = {});
   const PLATFORMS = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook', threads: 'Threads' };
-  const ST = { producing: 'Diproduksi', scheduled: 'Terjadwal', draft: 'Draft', posted: 'Sudah tayang', failed: 'Gagal' };
+  const ST = { review: 'Perlu dicek', producing: 'Diproduksi', scheduled: 'Terjadwal', draft: 'Draft', posted: 'Sudah tayang', failed: 'Gagal' };
   const S = () => VO.app.state;
   const list = () => (Array.isArray(S().videos) ? S().videos : (S().videos = []));
   const when = (t) => new Date(t).toLocaleString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -19,7 +19,7 @@
 
   function card(v) {
     const vert = v.format !== '16:9';
-    const thumb = v.thumb && v.thumb.url ? `<img src="${esc(v.thumb.url)}" alt="" loading="lazy">` : `<div class="gph">${v.status === 'producing' ? '🎬' : '🎞️'}</div>`;
+    const thumb = v.thumb && v.thumb.url ? `<img src="${esc(v.thumb.url)}" alt="" loading="lazy">` : `<div class="gph">${v.status === 'producing' ? '🎬' : v.status === 'review' ? '📝' : '🎞️'}</div>`;
     const stage = v.status === 'producing' ? `<div class="gbar"><i style="width:${Math.round((v.progress || 0) * 100)}%"></i></div><div class="gst">${esc({ naskah: 'Menulis naskah…', antre: 'Antre di server video…', media: 'Mencari foto/video stok…', narasi: 'Merekam narasi…', kode: 'AI menulis animasi khusus…', render: 'Merender ' + Math.round((v.progress || 0) * 100) + '%', upload: 'Menyimpan…' }[v.stage] || 'Tim sedang riset…')}</div>` : '';
     const sched = v.schedule ? `<span>⏰ ${esc(when(v.schedule))}</span>` : '';
     return `<div class="gcard ${vert ? 'v' : 'h'} st-${v.status}" data-vid="${v.id}">
@@ -35,7 +35,7 @@
     const by = (st) => vs.filter((v) => v.status === st);
     const sched = by('scheduled').sort((a, b) => a.schedule - b.schedule);
     const sec = (title, arr) => (arr.length ? `<div class="gsec">${title} <b>${arr.length}</b></div><div class="ggrid">${arr.map(card).join('')}</div>` : '');
-    let h = sec('Sedang diproduksi', by('producing')) + sec('Terjadwal', sched) + sec('Draft', by('draft')) + sec('Sudah tayang', by('posted')) + sec('Gagal', by('failed'));
+    let h = sec('Perlu dicek — edit naskah lalu render', by('review')) + sec('Sedang diproduksi', by('producing')) + sec('Terjadwal', sched) + sec('Draft', by('draft')) + sec('Sudah tayang', by('posted')) + sec('Gagal', by('failed'));
     if (!h) h = `<p class="empty">Belum ada video. Klik <b>🎬 Buat video</b>, atau tulis perintah seperti <i>"buat video penjelasan biaya listrik AI"</i> ke divisi Sosmed — naskah, template, render MP4, lalu muncul di sini.</p>`;
     if (el._html !== h) { el.innerHTML = h; el._html = h; }
     $('galleryCount').textContent = vs.filter((v) => v.status !== 'posted').length;
@@ -44,6 +44,7 @@
   G.show = function (id) {
     const v = list().find((x) => x.id === id);
     if (!v) return;
+    if (v.status === 'review') return G.editor(v.id);
     const player = v.file ? `<video src="${esc(v.file.url)}" ${v.thumb ? `poster="${esc(v.thumb.url)}"` : ''} controls playsinline class="gvideo ${v.format === '16:9' ? 'h' : 'v'}"></video>` : `<p class="empty">${v.status === 'failed' ? 'Gagal: ' + esc(v.error || '') : 'Video sedang diproduksi…'}</p>`;
     const plats = Object.entries(PLATFORMS).map(([k, l]) => `<label class="gplat"><input type="checkbox" data-plat="${k}" ${(v.platforms || []).includes(k) ? 'checked' : ''}> ${l}</label>`).join('');
     $('resultTitle').textContent = v.title;
@@ -66,6 +67,144 @@
     $('resultBody').dataset.vid = v.id;
     $('resultDlg').showModal();
   };
+
+  /* ------------------------------------------------------------ editor naskah (sebelum render) */
+  // Field per template: [kunci, label, jenis] — jenis: text | area | lines | num | pairs (label = nilai)
+  const FIELDS = {
+    title: [['kicker', 'Label kecil', 'text'], ['title', 'Judul (hook)', 'text'], ['sub', 'Subjudul', 'text']],
+    media: [['kicker', 'Label kecil', 'text'], ['title', 'Judul', 'text'], ['sub', 'Subjudul', 'text'], ['media', 'Kata kunci foto/video stok (Inggris)', 'text']],
+    stat: [['title', 'Judul', 'text'], ['prefix', 'Awalan (mis. Rp)', 'text'], ['value', 'Angka', 'num'], ['unit', 'Satuan', 'text'], ['label', 'Keterangan', 'text']],
+    compare: [['title', 'Judul', 'text'], ['unit', 'Satuan', 'text'], ['items', 'Data (satu per baris: Label = nilai)', 'pairs']],
+    bullets: [['title', 'Judul', 'text'], ['items', 'Poin (satu per baris, maks 5)', 'lines']],
+    steps: [['title', 'Judul', 'text'], ['items', 'Langkah (satu per baris, maks 5)', 'lines']],
+    quote: [['text', 'Kutipan', 'area'], ['author', 'Sumber', 'text']],
+    countdown: [['from', 'Mulai dari', 'num'], ['label', 'Keterangan', 'text']],
+    versus: [['title', 'Judul', 'text'], ['left.label', 'Kiri — label', 'text'], ['left.items', 'Kiri — poin (per baris)', 'lines'], ['right.label', 'Kanan — label', 'text'], ['right.items', 'Kanan — poin (per baris)', 'lines']],
+    image: [['title', 'Judul', 'text'], ['sub', 'Subjudul', 'text']],
+    device: [['title', 'Judul', 'text'], ['items', 'Label fitur (per baris, maks 3)', 'lines']],
+    price: [['title', 'Judul', 'text'], ['price', 'Harga', 'text'], ['old', 'Harga coret', 'text'], ['sub', 'Keterangan', 'text']],
+    cta: [['title', 'Janji utama', 'text'], ['action', 'Tombol ajakan (mis. Coba gratis)', 'text'], ['sub', 'Akun / website', 'text']],
+  };
+  const ASSET_T = ['title', 'media', 'image', 'device'];
+  const getK = (o, k) => k.split('.').reduce((a, x) => (a == null ? a : a[x]), o);
+  const setK = (o, k, val) => { const ks = k.split('.'); let a = o; ks.slice(0, -1).forEach((x) => { a = a[x] = a[x] || {}; }); a[ks[ks.length - 1]] = val; };
+  const fieldVal = (sc, k, kind) => {
+    const v = getK(sc, k);
+    if (kind === 'lines') return (v || []).join('\n');
+    if (kind === 'pairs') return (v || []).map((i) => `${i.label} = ${i.value}`).join('\n');
+    return v == null ? '' : String(v);
+  };
+  const B = () => VO.videoBoard;
+
+  function editorHtml(v) {
+    const sb = v.storyboard, assets = v.assets || [];
+    const opt = (obj, cur) => Object.entries(obj).map(([k, l]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${esc(typeof l === 'string' ? l : l.label)}</option>`).join('');
+    const tOpts = (cur) => Object.keys(B().TEMPLATES).map((k) => `<option value="${k}"${k === cur ? ' selected' : ''}>${k}</option>`).join('');
+    const scenes = sb.scenes.map((sc, i) => {
+      const f = (FIELDS[sc.t] || []).map(([k, label, kind]) => {
+        const val = esc(fieldVal(sc, k, kind));
+        const input = kind === 'text' || kind === 'num' ? `<input type="${kind === 'num' ? 'number' : 'text'}" step="any" data-k="${k}" data-kind="${kind}" value="${val}">` : `<textarea rows="${kind === 'area' ? 2 : 3}" data-k="${k}" data-kind="${kind}">${val}</textarea>`;
+        return `<label class="ef"><span>${esc(label)}</span>${input}</label>`;
+      }).join('');
+      const assetSel = ASSET_T.includes(sc.t) && assets.length ? `<label class="ef"><span>Aset</span><select data-k="asset" data-kind="num"><option value="">— tidak ada —</option>${assets.map((a, j) => `<option value="${j + 1}"${sc.asset === j + 1 ? ' selected' : ''}>${j + 1}. ${esc(a.name || a.type)}</option>`).join('')}</select></label>` : '';
+      return `<div class="escene" data-i="${i}">
+        <div class="eshead"><b>${i + 1}</b>
+          <select data-k="t" data-kind="tpl" aria-label="Template adegan ${i + 1}">${tOpts(sc.t)}</select>
+          <label class="esec">Durasi <input type="number" min="2" max="9" step="0.5" data-k="sec" data-kind="num" value="${sc.sec}"> dtk</label>
+          <span class="spacer"></span>
+          <button type="button" class="icon" data-e="up" title="Naikkan" aria-label="Naikkan">↑</button><button type="button" class="icon" data-e="down" title="Turunkan" aria-label="Turunkan">↓</button><button type="button" class="icon danger" data-e="rm" title="Hapus adegan" aria-label="Hapus adegan">✕</button>
+        </div>
+        <div class="esbody">${f}${assetSel}
+          <label class="ef wide"><span>Narasi (dibacakan)</span><textarea rows="2" data-k="narration" data-kind="area">${esc(sc.narration || '')}</textarea></label>
+          <label class="ef wide"><span>✨ Animasi buatan AI (kosongkan = template biasa)</span><input type="text" data-k="custom" data-kind="text" value="${esc(sc.custom || '')}" placeholder="mis. angka berhitung naik sambil grafik batang tumbuh"></label>
+        </div></div>`;
+    }).join('');
+    return `<div class="eview" data-vid="${v.id}">
+      <p class="muted">Naskah ditulis AI — ubah apa pun, lalu klik <b>Render video</b>. Remotion merender persis sesuai naskah ini${assets.length ? ` (${assets.length} aset terlampir)` : ''}.</p>
+      <div class="egrid">
+        <label class="ef wide"><span>Judul video</span><input type="text" data-g-k="title" value="${esc(sb.title)}"></label>
+        <label class="ef"><span>Paket visual</span><select data-g-k="pack">${opt(B().PACKS, sb.pack)}</select></label>
+        <label class="ef"><span>Musik</span><select data-g-k="music">${opt(B().MUSIC, sb.music)}</select></label>
+        <label class="ef"><span>Narasi</span><select data-g-k="voice">${opt(B().VOICES, sb.voice)}</select></label>
+        <label class="ef"><span>Nama akun / brand</span><input type="text" data-g-k="brand" value="${esc(sb.brand || '')}"></label>
+      </div>
+      <div class="escenes">${scenes}</div>
+      <button type="button" class="small" data-e="add">${VO.icon('plus')} Tambah adegan</button>
+      <label class="ef wide" style="margin-top:12px"><span>Caption media sosial</span><textarea rows="2" data-g-k="caption">${esc(sb.caption || '')}</textarea></label>
+      <div class="btns" style="margin-top:12px">
+        <button type="button" class="primary" data-e="render">${VO.icon('monitor')} Render video</button>
+        <button type="button" data-e="save">Simpan draf</button>
+        <span class="spacer"></span>
+        <button type="button" class="danger" data-e="del">${VO.icon('trash')} Hapus draf</button>
+      </div></div>`;
+  }
+
+  // baca isi editor → objek naskah
+  function collect(root, v) {
+    const sb = JSON.parse(JSON.stringify(v.storyboard));
+    root.querySelectorAll('[data-g-k]').forEach((el) => { sb[el.dataset.gK] = el.value; });
+    sb.scenes = [...root.querySelectorAll('.escene')].map((card) => {
+      const sc = JSON.parse(JSON.stringify(v.storyboard.scenes[Number(card.dataset.i)] || {}));
+      card.querySelectorAll('[data-k]').forEach((el) => {
+        const k = el.dataset.k, kind = el.dataset.kind, raw = el.value;
+        if (kind === 'lines') setK(sc, k, raw.split('\n').map((x) => x.trim()).filter(Boolean));
+        else if (kind === 'pairs') setK(sc, k, raw.split('\n').map((ln) => { const [l, val] = ln.split('='); return { label: (l || '').trim(), value: (val || '').trim() }; }).filter((x) => x.label));
+        else if (kind === 'num') { if (raw === '') delete sc[k]; else setK(sc, k, Number(raw)); }
+        else if (k === 'custom' && !raw.trim()) delete sc.custom;
+        else setK(sc, k, raw);
+      });
+      return sc;
+    });
+    return sb;
+  }
+
+  G.editor = function (id) {
+    const v = list().find((x) => x.id === id);
+    if (!v || !v.storyboard) return;
+    $('resultTitle').textContent = '📝 Cek naskah: ' + v.storyboard.title;
+    $('resultBody').innerHTML = editorHtml(v);
+    $('resultBody').dataset.vid = v.id;
+    if (!$('resultDlg').open) $('resultDlg').showModal();
+  };
+
+  async function onEditor(e) {
+    const b = e.target.closest('[data-e]');
+    const root = $('resultBody').querySelector('.eview');
+    if (!root) return;
+    const v = list().find((x) => x.id === root.dataset.vid);
+    if (!v) return;
+    // ganti template → isi editor disusun ulang dengan field template baru
+    if (!b && e.type === 'change' && e.target.dataset.kind === 'tpl') { v.storyboard = collect(root, v); return G.editor(v.id); }
+    if (!b) return;
+    const a = b.dataset.e;
+    const card = b.closest('.escene'), i = card ? Number(card.dataset.i) : -1;
+    v.storyboard = collect(root, v);
+    const sc = v.storyboard.scenes;
+    if (a === 'up' && i > 0) [sc[i - 1], sc[i]] = [sc[i], sc[i - 1]];
+    else if (a === 'down' && i < sc.length - 1) [sc[i + 1], sc[i]] = [sc[i], sc[i + 1]];
+    else if (a === 'rm') sc.splice(i, 1);
+    else if (a === 'add') sc.splice(Math.max(0, sc.length - 1), 0, { t: 'bullets', sec: 4, title: '', items: [], narration: '' });
+    else if (a === 'save') { VO.app.changed(); VO.ui.toast('Draf naskah disimpan', 'check'); }
+    else if (a === 'del') {
+      if (!(await VO.ui.confirm('Hapus draf video ini?'))) return G.editor(v.id);
+      S().videos = list().filter((x) => x !== v);
+      for (const f of v.assets || []) if (!f.localOnly) VO.files.remove(f);
+      $('resultDlg').close(); VO.app.changed(); return G.render();
+    } else if (a === 'render') {
+      const before = sc.length;
+      try { v.storyboard = B().finalize(v.storyboard, (v.assets || []).length); }
+      catch (err) { return VO.ui.toast(err.message, 'alert'); }
+      const dropped = before - v.storyboard.scenes.length;
+      v.title = v.storyboard.title; v.caption = v.storyboard.caption;
+      $('resultDlg').close(); VO.app.changed();
+      VO.ui.toast(`🎬 Render dimulai${dropped ? ` — ${dropped} adegan kosong dilewati` : ''}`, 'sparkles');
+      VO.video.produce(v.id).then((it) => { VO.ui.toast('🎬 Video selesai: ' + it.title, 'check'); G.render(); })
+        .catch((err) => { VO.ui.toast('Gagal membuat video: ' + err.message, 'alert'); G.render(); });
+      return G.render();
+    }
+    VO.app.changed();
+    G.editor(v.id);
+  }
 
   async function onAction(e) {
     const b = e.target.closest('[data-g]');
@@ -133,6 +272,7 @@
       { key: 'cta', label: 'Ajakan penutup', value: '', placeholder: 'Follow buat fakta AI lainnya!' },
       { key: 'divisionId', label: 'Dikerjakan oleh', type: 'select', value: cdiv ? cdiv.id : '', options: [{ value: '', label: 'Seluruh kantor' }, ...s.divisions.map((d) => ({ value: d.id, label: 'Divisi ' + d.name }))] },
       { key: 'schedule', label: 'Jadwal tayang (opsional, format: 2026-10-21 19:00)', value: '', placeholder: 'kosongkan = simpan sebagai draft' },
+      { key: 'review', label: 'Cek & edit naskah dulu sebelum render (disarankan)', type: 'checkbox', value: true },
       { key: 'telegram', label: 'Kirim hasilnya ke Telegram', type: 'checkbox', value: !!(VO.telegram && VO.telegram.configured) },
     ], 'Buat video');
     const body = $('dlgBody');
@@ -155,13 +295,13 @@
     if (!v) return;
     if (!v.brief) return VO.ui.toast('Isi dulu video tentang apa', 'alert');
     const t = v.schedule ? new Date(v.schedule.replace(' ', 'T')).getTime() : null;
-    G.start({ brief: v.brief, style: v.style, pack: v.pack || undefined, creative: v.creative !== 'off', voice: v.voice, music: v.music || undefined, format: v.format, duration: v.duration, brand: v.brand, cta: v.cta, divisionId: v.divisionId || null, files: [...photo.files].slice(0, 8), schedule: t && isFinite(t) ? t : null, telegram: v.telegram ? true : false });
+    G.start({ brief: v.brief, style: v.style, pack: v.pack || undefined, creative: v.creative !== 'off', review: !!v.review, voice: v.voice, music: v.music || undefined, format: v.format, duration: v.duration, brand: v.brand, cta: v.cta, divisionId: v.divisionId || null, files: [...photo.files].slice(0, 8), schedule: t && isFinite(t) ? t : null, telegram: v.telegram ? true : false });
   };
 
   G.start = function (o) {
     VO.ui.toast('🎬 Tim mulai riset & menulis naskah — progres terlihat di tab Galeri', 'sparkles');
     G.focusTab();
-    return VO.video.create(o).then((item) => { VO.ui.toast('🎬 Video selesai: ' + item.title, 'check'); G.render(); return item; })
+    return VO.video.create(o).then((item) => { if (item.status === 'review') { VO.ui.toast('📝 Draf naskah siap — cek & edit di Galeri, lalu Render', 'file'); G.render(); G.editor(item.id); } else { VO.ui.toast('🎬 Video selesai: ' + item.title, 'check'); G.render(); } return item; })
       .catch((e) => { VO.ui.toast('Gagal membuat video: ' + e.message, 'alert'); G.render(); throw e; });
   };
   G.focusTab = () => { const t = document.querySelector('.tab[data-tab="gallery"]'); if (t) t.click(); };
@@ -169,6 +309,8 @@
   document.addEventListener('DOMContentLoaded', () => {
     $('galleryList').addEventListener('click', (e) => { const c = e.target.closest('[data-vid]'); if (c) G.show(c.dataset.vid); });
     $('resultBody').addEventListener('click', onAction);
+    $('resultBody').addEventListener('click', onEditor);
+    $('resultBody').addEventListener('change', onEditor);
     $('btnGalleryNew').addEventListener('click', () => G.openCreate());
     const vb = $('btnVideo'); if (vb) vb.addEventListener('click', () => G.openCreate());
     setInterval(() => { G.render(); }, 1000);

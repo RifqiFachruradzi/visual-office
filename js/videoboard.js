@@ -148,6 +148,23 @@
     };
   };
 
+  /** Naskah hasil edit Boss → dirapikan tanpa mengubah keputusan Boss (durasi, urutan, aset tetap). */
+  B.finalize = function (sb, nAssets) {
+    let scenes = (sb.scenes || []).map(cleanScene).filter(Boolean).slice(0, 12);
+    if (!scenes.length) throw new Error('Naskah kosong — minimal satu adegan yang terisi');
+    scenes = scenes.map((x) => {
+      if (x.asset && x.asset > (nAssets || 0)) delete x.asset;
+      return (x.t === 'device' || x.t === 'image') && !x.asset ? { ...x, t: 'media', media: x.media || x.title } : x;
+    });
+    let n = 0; scenes.forEach((x) => { if (x.custom && ++n > B.MAX_CUSTOM) delete x.custom; });
+    const pack = B.PACKS[sb.pack] ? sb.pack : 'bold';
+    return {
+      title: str(sb.title, 90) || 'Video', brand: str(sb.brand, 30) || 'Visual Office', pack, theme: { ...B.PACKS[pack].theme },
+      music: B.MUSIC[sb.music] ? sb.music : 'upbeat', voice: B.VOICES[sb.voice] ? sb.voice : 'female',
+      caption: str(sb.caption, 900), creative: scenes.some((x) => x.custom), scenes,
+    };
+  };
+
   /** Prompt AI untuk menyusun storyboard. o: { brief, style, format, duration, brand, cta, pack, image, assets:[{kind,name}] } */
   B.prompt = function (o, context) {
     const style = B.STYLES[o.style] || B.STYLES[B.guessStyle(o.brief || '')];
