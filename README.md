@@ -1,7 +1,14 @@
 # Visual Office — Kantor Agent AI
 
-Visualisasi kantor **isometrik 2.5D** (gaya pixel ala Habbo) yang karyawannya adalah **agent AI** (ditenagai Gemini, gratis). Mirip `claude-office`, tapi milikmu sendiri: kamu bisa
-mengatur bentuk kantor, menambah **divisi**, **departemen**, merekrut **agen**, dan ada **Boss** yang memberi perintah.
+![Demo Visual Office: Boss memberi perintah, karyawan AI rapat dan mulai bekerja](demo.gif)
+
+**[▶ Coba live demo](https://visual-office.vercel.app)**
+
+- 🤖 **Kantor berisi agent AI**: beri perintah sebagai Boss, lalu Direktur → Ketua Tim → Staf akan briefing, bekerja, dan melapor balik secara berjenjang.
+- 📊 **Terhubung ke data bisnis nyata**: agen membaca data aplikasi MiniMarket & Gudang untuk menyusun laporan stok dan penjualan.
+- 🎬 **Lebih dari sekadar chat**: render 3D (three.js), perintah lewat bot Telegram, sampai pembuatan video MP4 otomatis dengan Remotion.
+
+Visualisasi kantor **isometrik 2.5D** (gaya pixel ala Habbo) yang karyawannya adalah **agent AI** (ditenagai Gemini, gratis). Kamu bisa mengatur bentuk kantor, menambah **divisi**, **departemen**, merekrut **agen**, dan ada **Boss** yang memberi perintah.
 
 ## Fitur
 
@@ -62,7 +69,7 @@ Lalu centang **Mode AI nyata** di bar atas. Tanpa API key, aplikasi tetap jalan 
 ### Opsi C — deploy ke Vercel
 Proyek ini siap Vercel tanpa konfigurasi build: file statis + Vercel Functions di `api/` (`api/health.js`, `api/run.js`).
 
-1. Di [vercel.com/new](https://vercel.com/new) → **Import** repo `visual-offine` dari GitHub.
+1. Di [vercel.com/new](https://vercel.com/new) → **Import** repo `visual-office` dari GitHub.
 2. **Framework Preset:** `Other` (sudah dipaksa lewat `vercel.json`). Build Command & Output Directory biarkan default.
 3. **Environment Variables:** tambahkan `GEMINI_API_KEY` = kunci dari Google AI Studio (centang Production & Preview).
 4. **Database akun:** project → **Storage → Create Database → Upstash for Redis → Connect**
@@ -95,7 +102,7 @@ kuota, beri tugas per tim atau pakai model Flash-Lite.
 ### Hubungkan Claude Code (live)
 1. Jalankan `npm start`.
 2. Salin isi `hooks/settings.example.json` ke `~/.claude/settings.json` (atau `.claude/settings.json` di proyekmu),
-   ganti `/PATH/KE/visual-offine` dengan lokasi folder ini.
+   ganti `/PATH/KE/visual-office` dengan lokasi folder ini.
 3. Pakai Claude Code seperti biasa — setiap sesi muncul di divisi **Live · Claude Code**.
 
 Hook tidak pernah memblokir Claude Code (timeout 1,5 detik, selalu exit 0). Ubah alamat server dengan `VISUAL_OFFICE_URL`.
