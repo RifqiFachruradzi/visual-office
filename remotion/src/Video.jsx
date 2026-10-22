@@ -515,7 +515,7 @@ T.device = ({ sc, imageUrl }) => {
     const d = Math.round(dur * (0.28 + i * 0.2));
     const c = spring({ frame: f - d, fps, config: { damping: 12 } });
     const left = i % 2 === 0;
-    const pos = L.vert ? { position: 'absolute', top: `${34 + i * 19}%`, [left ? 'left' : 'right']: 22 * k } : {};
+    const pos = L.vert ? { position: 'absolute', top: `${28 + i * 16}%`, [left ? 'left' : 'right']: 22 * k } : {};
     return (
       <div key={i} style={{ ...pos, transform: `scale(${c})`, opacity: c, transformOrigin: left ? 'left center' : 'right center', maxWidth: (L.vert ? 330 : 460) * k, background: L.accent, color: L.onAccent, padding: `${14 * k}px ${22 * k}px`, borderRadius: L.pack.radius ? 18 * k : 0, fontFamily: `"${L.pack.body}"`, fontWeight: 800, fontSize: 28 * k, lineHeight: 1.2, boxShadow: `0 ${12 * k}px ${28 * k}px rgba(0,0,0,0.35)`, display: 'flex', alignItems: 'center', gap: 10 * k, marginBottom: L.vert ? 0 : 16 * k }}>
         <span style={{ width: 12 * k, height: 12 * k, borderRadius: 99, background: L.onAccent, flex: 'none' }} />{it}
