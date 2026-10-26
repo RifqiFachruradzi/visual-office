@@ -64,13 +64,17 @@
   const alpha = (hex, a) => { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; };
 
   // Kamera 3D bebas (ortografis): yaw = putar mengelilingi gedung, pitch = sudut pandang dari atas.
-  // 3D default = menghadap depan (yaw 0°, pitch 32°): dinding belakang sejajar layar; 2D = dari atas.
+  // 3D default = menghadap depan (yaw 0°, pitch 36°): dinding belakang sejajar layar; 2D = dari atas.
   const U = 34, ZM = 2.4 * U; // px per tile (1 tile = 1 m), tinggi lantai 2 (2,4 m)
-  const VIEW = (R.view = { yaw: 0, pitch: 32 });
+  const VIEW = (R.view = { yaw: 0, pitch: 36 });
   let FLAT = false, OBL = true, MZ = null, ELEV_OFF = false, PROBE = null;
   let CYA = 1, SYA = 0, SP = 0.57, CP = 0.82;
+  // Perspektif (3D): mata kamera tetap di depan-atas gedung, PERSP = jaraknya (px) ke pusat lantai.
+  // Skala = 1 tepat di bidang pusat; yang lebih dekat tampak lebih besar. 0 = ortografis (denah 2D).
+  let PERSP = 0;
+  const PERSP_K = 1.9; // × sisi terpanjang denah — makin kecil, makin kuat efek perspektifnya
   // sudut kamera 3D tetap (menghadap depan); pengguna hanya bisa zoom & geser
-  R.viewOf = (st) => (st && st.view === '2d' ? { yaw: 0, pitch: 88 } : { yaw: 0, pitch: 32 });
+  R.viewOf = (st) => (st && st.view === '2d' ? { yaw: 0, pitch: 88 } : { yaw: 0, pitch: 36 });
   function updateGeo(s) {
     const v = R.viewOf(s.settings);
     VIEW.yaw = v.yaw; VIEW.pitch = Math.max(18, Math.min(89, v.pitch));
@@ -78,6 +82,7 @@
     MZ = VO.mezz(s);
     const a = (VIEW.yaw * Math.PI) / 180, b = (VIEW.pitch * Math.PI) / 180;
     CYA = Math.cos(a); SYA = Math.sin(a); SP = Math.sin(b); CP = Math.cos(b);
+    PERSP = FLAT ? 0 : Math.max(s.map.w, s.map.h) * U * PERSP_K;
     geo.MH = s.map.h; geo.CXW = (s.map.w / 2) * U; geo.CYW = (s.map.h / 2) * U;
     geo.OX = 0; geo.OY = 0;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -86,9 +91,16 @@
     geo.OX = -x0 + 40; geo.OY = -y0 + 40;
     geo.W = Math.ceil(x1 - x0 + 80); geo.H = Math.ceil(y1 - y0 + 80);
   }
+  // basis kamera dalam ruang (dx, dy, z): kanan r = (C, −S, 0), bawah-layar d = (S·SP, C·SP, −CP),
+  // ke arah penonton b = (S·CP, C·CP, SP)
   const proj = (tx, ty, z) => {
     const dx = tx * U - geo.CXW, dy = ty * U - geo.CYW;
-    return { x: geo.OX + dx * CYA - dy * SYA, y: geo.OY + (dx * SYA + dy * CYA) * SP - z * CP };
+    let X = dx * CYA - dy * SYA, Y = (dx * SYA + dy * CYA) * SP - z * CP;
+    if (PERSP) {
+      const k = PERSP / Math.max(PERSP * 0.15, PERSP - ((dx * SYA + dy * CYA) * CP + z * SP));
+      X *= k; Y *= k;
+    }
+    return { x: geo.OX + X, y: geo.OY + Y };
   };
   // kedalaman (semakin besar = semakin dekat kamera) untuk urutan gambar
   const depthOf = (tx, ty) => (tx * U - geo.CXW) * SYA + (ty * U - geo.CYW) * CYA;
@@ -107,9 +119,19 @@
   // layar → tile (dicoba di lantai 2 dulu bila ada mezanin)
   const toTile = (ix, iy) => {
     const rx = ix - geo.OX;
+    const Y = iy - geo.OY;
     for (const Z of MZ ? [ZM, 0] : [0]) {
-      const ry = (iy - geo.OY + Z * CP) / SP;
-      const dx = rx * CYA + ry * SYA, dy = -rx * SYA + ry * CYA;
+      let dx, dy;
+      if (PERSP) { // perspektif: titik layar → sinar dari mata, potong bidang lantai setinggi Z
+        const D = PERSP, b0 = SYA * CP, b1 = CYA * CP, w = D - Z * SP;
+        const a11 = D * CYA + rx * b0, a12 = -D * SYA + rx * b1, c1 = rx * w;
+        const a21 = D * SYA * SP + Y * b0, a22 = D * CYA * SP + Y * b1, c2 = Y * w + D * Z * CP;
+        const det = a11 * a22 - a12 * a21 || 1e-9;
+        dx = (c1 * a22 - a12 * c2) / det; dy = (a11 * c2 - c1 * a21) / det;
+      } else {
+        const ry = (Y + Z * CP) / SP;
+        dx = rx * CYA + ry * SYA; dy = -rx * SYA + ry * CYA;
+      }
       const t = { x: (dx + geo.CXW) / U, y: (dy + geo.CYW) / U };
       if (Z === ZM && t.y > MZ.M) continue;
       return t;
@@ -2333,10 +2355,10 @@
         ctx.strokeStyle = sel ? '#ffd166' : 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.ellipse(p.x, p.y, 17, 17 * SP, 0, 0, 7); ctx.stroke(); ctx.lineWidth = 1;
       }
-      rt._screen = { x: p.x, y: p.y, head: p.y - (rt.sitting ? 1.5 : 1.95) * U * CP };
+      rt._screen = { x: p.x, y: p.y, head: iso(fx, fy, (rt.sitting ? 1.5 : 1.95) * U).y };
       list.push({ id: e.id, cast: VO.castOf(e), boss: e.id === 'boss', x: fx * U, y: elevAt(fx, fy), z: fy * U, rot: Math.atan2(hx, hy), pose });
     }
-    S3().render({ geo, CYA, SYA, SP, CP, cam: R.cam, w: canvas.clientWidth, h: canvas.clientHeight, dpr }, list);
+    S3().render({ geo, CYA, SYA, SP, CP, persp: PERSP, cam: R.cam, w: canvas.clientWidth, h: canvas.clientHeight, dpr }, list);
     if (ui.edit) drawEditOverlay(ctx, s, ui);
     layoutLabels(ctx, people);
     for (const [e, rt] of people) drawPersonOverlay(ctx, e, rt, now);

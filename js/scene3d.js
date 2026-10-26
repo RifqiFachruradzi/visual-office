@@ -498,15 +498,19 @@ S3.render = function (v, list) {
   // kamera: basis r (kanan), u (atas), back (ke arah penonton) — identik dengan proj() di render.js
   const c = v.CYA, sn = v.SYA, SP = v.SP, CP = v.CP;
   const r = new THREE.Vector3(c, 0, -sn), u = new THREE.Vector3(-sn * SP, CP, -c * SP), back = new THREE.Vector3(sn * CP, SP, c * CP);
-  const D = 30000;
+  // perspektif: mata di pusat lantai + back × persp (sama persis dengan proj() di render.js);
+  // geser/zoom kamera 2D = menggeser/memperbesar bidang gambar (frustum asimetris), mata tetap
+  const D = v.persp || 30000;
   camera.position.set(v.geo.CXW + back.x * D, back.y * D, v.geo.CYW + back.z * D);
   camera.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(r, u, back));
-  const z = v.cam.zoom;
-  camera.left = v.cam.x - v.geo.OX; camera.right = v.cam.x + cw / z - v.geo.OX;
-  camera.top = v.geo.OY - v.cam.y; camera.bottom = v.geo.OY - v.cam.y - ch / z;
-  const rad = S3.radius || 3000;
-  camera.near = D - rad * 1.5; camera.far = D + rad * 1.5;
-  camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  const z = v.cam.zoom, rad = S3.radius || 3000;
+  camera.near = Math.max(20, D - rad * 1.6); camera.far = D + rad * 1.6;
+  const k = camera.near / D;
+  const L = (v.cam.x - v.geo.OX) * k, Rr = (v.cam.x + cw / z - v.geo.OX) * k;
+  const T = (v.geo.OY - v.cam.y) * k, B = (v.geo.OY - v.cam.y - ch / z) * k;
+  camera.projectionMatrix.makePerspective(L, Rr, T, B, camera.near, camera.far);
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+  camera.updateMatrixWorld();
   // dinding yang menghalangi pandangan disembunyikan (seperti rumah boneka)
   if (rearMesh) rearMesh.visible = back.z > -0.05;
   if (leftMesh) leftMesh.visible = back.x > -0.05;
@@ -593,7 +597,8 @@ S3.init = async function (canvas2d) {
     sun.shadow.mapSize.set(4096, 4096);
     sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6; sun.shadow.radius = 3;
     scene.add(sun, sun.target);
-    camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 1000);
+    // proyeksi diisi manual tiap frame (frustum asimetris) — jangan panggil updateProjectionMatrix()
+    camera = new THREE.PerspectiveCamera(40, 1, 1, 1000);
     S3.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0, envMapIntensity: 0.1 });
     charMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, envMapIntensity: 0.25 });
     applyQuality();
