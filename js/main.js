@@ -247,7 +247,12 @@
     tour.i = ((i % n) + n) % n;
     const st = tour.stops[tour.i], c = $('office'), s = app.state;
     if (app.sel && app.sel.kind === 'agent') app.select(null);
-    const to = st.kind === 'all' ? R.fit(c, s, true) : R.focusRect(c, s, st.rect, true);
+    let to = st.kind === 'all' ? R.fit(c, s, true) : R.focusRect(c, s, st.rect, true);
+    const cap = 1.45; // ruangan kecil jangan di-zoom terlalu dekat (sekitar ruangan tetap terlihat)
+    if (st.kind !== 'all' && to.zoom > cap) {
+      const W = c.clientWidth, H = c.clientHeight, cx = to.x + W / (2 * to.zoom), cy = to.y + H / (2 * to.zoom);
+      to = { zoom: cap, x: cx - W / (2 * cap), y: cy - H / (2 * cap) };
+    }
     app.flyCam(to, opts.dur || 1200);
     tourCaption(st);
     syncTour();
