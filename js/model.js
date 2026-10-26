@@ -138,7 +138,7 @@
       videos: [], // galeri video (programmatic video)
       log: [],
     };
-    for (const t of ['boss', 'meeting', 'pantry', 'pool', 'billiard']) VO.addFacility(s, t);
+    for (const t of ['boss', 'meeting', 'pantry', 'lounge', 'billiard']) VO.addFacility(s, t); // kolam renang tetap bisa ditambah lewat Edit layout
     return s;
   };
 

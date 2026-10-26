@@ -232,16 +232,16 @@ function tileTex() {
   });
 }
 let glassMat = null;
-const glassMaterial = () => glassMat || (glassMat = Object.assign(new THREE.MeshStandardMaterial({ color: '#d9eef5', transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0, envMapIntensity: 1, depthWrite: false, side: THREE.DoubleSide }), { userData: { shared: true } }));
+const glassMaterial = () => glassMat || (glassMat = Object.assign(new THREE.MeshStandardMaterial({ color: '#cde9f3', transparent: true, opacity: 0.13, roughness: 0.05, metalness: 0, envMapIntensity: 0.35, depthWrite: false, side: THREE.DoubleSide }), { userData: { shared: true } }));
 const FRAME = '#3a4249';
 // dinding kaca berangka gelap dari (x0, z0) ke (x1, z1) — frame ke batch `b`, kaca ke batch `g`
-function glassWall(b, g, x0, z0, x1, z1, y, hgt = 2.2, gaps = []) {
+function glassWall(b, g, x0, z0, x1, z1, y, hgt = 2.2, gaps = [], gw = 0.6) {
   const alongX = Math.abs(x1 - x0) >= Math.abs(z1 - z0);
   const len = alongX ? x1 - x0 : z1 - z0, a0 = alongX ? x0 : z0;
   const seg = (u0, u1) => {
     if (u1 - u0 < 0.15) return;
     const P = (u, w) => (alongX ? [a0 + u, z0, w] : [x0, a0 + u, w]);
-    const n = Math.max(1, Math.round((u1 - u0) / 1.4));
+    const n = Math.max(1, Math.round((u1 - u0) / 2.4));
     for (let k = 0; k <= n; k++) { // tiang
       const u = u0 + ((u1 - u0) * k) / n, [px, pz] = P(u);
       b.box(px - 0.035, y, pz - 0.035, px + 0.035, y + hgt, pz + 0.035, FRAME);
@@ -253,8 +253,18 @@ function glassWall(b, g, x0, z0, x1, z1, y, hgt = 2.2, gaps = []) {
     g.box(Math.min(ax, bx) - tx, y + 0.06, Math.min(az, bz) - tz, Math.max(ax, bx) + tx, y + hgt - 0.06, Math.max(az, bz) + tz, '#ffffff');
   };
   let u = 0;
-  for (const c of gaps.map((v) => v - a0).sort((p, q) => p - q)) { seg(u, c - 0.6); u = c + 0.6; }
+  for (const c of gaps.map((v) => v - a0).sort((p, q) => p - q)) { seg(u, c - gw); u = c + gw; }
   seg(u, len);
+}
+
+// ruangan berdinding kaca (4 sisi) dengan celah pintu di depan/belakang — doors = petak pintu {x, y}
+function glassRoom(b, g, r, y, doors, hgt, inset = 0.06, gw = 0.85) {
+  const x0 = r.x + inset, x1 = r.x + r.w - inset, z0 = r.y + inset, z1 = r.y + r.h - inset;
+  const at = (row) => doors.filter((d) => Math.abs(d.y - row) < 0.5).map((d) => d.x + 0.5);
+  glassWall(b, g, x0, z0, x1, z0, y, hgt, at(r.y), gw);
+  glassWall(b, g, x0, z1, x1, z1, y, hgt, at(r.y + r.h - 1), gw);
+  glassWall(b, g, x0, z0, x0, z1, y, hgt);
+  glassWall(b, g, x1, z0, x1, z1, y, hgt);
 }
 
 // bidang datar bertekstur (lantai/karpet) dari (x0, z0) ke (x1, z1) pada ketinggian y; tekstur selebar `m` meter
@@ -609,8 +619,8 @@ S3.build = function (s) {
   // --- divisi & departemen
   for (const div of s.divisions) {
     const z = div.zone;
-    // zona divisi: lantai kayu tetap terlihat, hanya list rendah sebagai batas + tanaman di sudut
-    zone(b, z, 0, null, VO.doorTiles(z, { type: 'zone' }), 0.03, 0.05);
+    // zona divisi: dinding kaca berangka gelap setinggi 2,2 m (pintu depan & belakang) + tanaman di sudut
+    glassRoom(b, glass, z, 0, VO.doorTiles(z, { type: 'zone' }), 2.2);
     bush(b, z.x + 0.5, 0, z.y + z.h - 0.5, 0.9);
     bush(b, z.x + z.w - 0.5, 0, z.y + 0.55, 0.9);
     // meja direktur (meja eksekutif dari office_ai_expanded_v2), kursi di belakang menghadap tim
@@ -630,6 +640,8 @@ S3.build = function (s) {
     const edge = mixHex(col, '#ffffff', 0.25);
     b.box(kx0, 0.004, kz0 - 0.05, kx1, 0.034, kz0, edge); b.box(kx0, 0.004, kz1, kx1, 0.034, kz1 + 0.05, edge);
     b.box(kx0 - 0.05, 0.004, kz0 - 0.05, kx0, 0.034, kz1 + 0.05, edge); b.box(kx1, 0.004, kz0 - 0.05, kx1 + 0.05, 0.034, kz1 + 0.05, edge);
+    // departemen: sekat kaca rendah (1 m) di tepi karpet, celah masuk di depan-tengah
+    glassRoom(b, glass, { x: r.x + 0.1, y: r.y + 0.1, w: r.w - 0.2, h: r.h - 0.2 }, 0, [{ x: r.x + Math.floor(r.w / 2), y: r.y + r.h - 1 }], 1.0, 0, 0.6);
     const n = VO.deptAgents(s, d.id).length;
     VO.deskSlots(r).slice(0, Math.max(n, 0)).forEach((sl) => {
       b.add(A.desk, { x: sl.desk.x + 0.5, y: 0, z: sl.desk.y + 0.5 });
