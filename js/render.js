@@ -2408,6 +2408,12 @@
     R.cam.y = p.y - vh / 2;
   };
 
+  // Posisi kamera agar titik dunia (wx, wy) tampil di fx × lebar layar, tengah vertikal
+  R.camFor = function (canvas, wx, wy, zoom, fx = 0.5) {
+    const p = iso(wx / T, wy / T, 20);
+    return { zoom, x: p.x - (canvas.clientWidth / zoom) * fx, y: p.y - canvas.clientHeight / zoom / 2 };
+  };
+
   // Zoom kamera ke satu ruangan / zona (tab ruangan)
   R.focusRect = function (canvas, s, r) {
     updateGeo(s);

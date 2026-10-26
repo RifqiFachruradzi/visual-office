@@ -12,9 +12,20 @@
  * Kamera ortografis memakai proyeksi yang sama persis dengan render.js (yaw/pitch, R.cam),
  * sehingga label, balon chat, hit-test & Edit Layout di kanvas 2D tetap pas di atasnya.
  * Semua geometri statis digabung (vertex color) menjadi beberapa mesh saja agar ringan.
+ *
+ * Kualitas grafis (VO.scene3d.quality, disimpan per perangkat):
+ *   2 = HD    — material PBR + cahaya lingkungan, bayangan lembut, ambient occlusion (GTAO), resolusi tinggi
+ *   1 = Sedang — tanpa ambient occlusion
+ *   0 = Hemat  — tanpa bayangan & AO, resolusi layar biasa
+ * Bila frame terlalu lambat, kualitas diturunkan otomatis satu tingkat.
  * ========================================================================= */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const VO = (window.VO = window.VO || {});
 const S3 = (VO.scene3d = { ready: false, failed: false, loading: false, dirty: true });
@@ -22,8 +33,20 @@ const U = 34; // px per meter — sama dengan U di render.js (1 tile = 1 m)
 const UP = 2.4; // tinggi lantai atas (m)
 const BASE = 'assets/';
 
-let renderer = null, scene = null, camera = null, glCanvas = null;
+let renderer = null, scene = null, camera = null, glCanvas = null, sun = null;
 let staticGroup = null, rearMesh = null, leftMesh = null, signGroup = null;
+let composer = null, aoPass = null;
+
+const GFX_KEY = 'vo.gfx';
+const readGfx = () => { try { const v = localStorage.getItem(GFX_KEY); return v == null ? 2 : Math.max(0, Math.min(2, Number(v) || 0)); } catch { return 2; } };
+S3.quality = readGfx();
+S3.setQuality = function (q, save = true) {
+  S3.quality = Math.max(0, Math.min(2, q));
+  if (save) { try { localStorage.setItem(GFX_KEY, String(S3.quality)); } catch { /* tanpa penyimpanan */ } }
+  slow = 0; frames = 0;
+  if (renderer) applyQuality();
+};
+let slow = 0, frames = 0, lastT = 0;
 const people = new Map(); // id -> instance karakter
 let A = null; // prefab hasil ekstraksi
 
@@ -220,14 +243,16 @@ function makePerson(castId, boss) {
   const G = {};
   for (const [k, g] of Object.entries(t.groups)) {
     const grp = new THREE.Group(); grp.position.copy(g.piv);
-    grp.add(new THREE.Mesh(g.geo, charMat));
+    const m = new THREE.Mesh(g.geo, charMat);
+    m.castShadow = true; m.receiveShadow = true;
+    grp.add(m);
     inner.add(grp); G[k] = grp;
   }
   if (boss) { // mahkota emas
     const b = new Batch(), y = t.height + 0.02, gold = '#ffca28';
     b.box(-0.17, y, -0.15, 0.17, y + 0.07, 0.15, gold);
     for (const [x, z] of [[-0.15, 0], [0, 0], [0.15, 0], [0, -0.13], [0, 0.13]]) b.box(x - 0.035, y + 0.07, z - 0.035, x + 0.035, y + 0.17, z + 0.035, gold);
-    const m = b.mesh(charMat); m.scale.setScalar(1); inner.add(m);
+    const m = b.mesh(charMat); m.scale.setScalar(1); m.castShadow = true; inner.add(m);
   }
   root.scale.setScalar(U);
   return { root, inner, G, hip: t.hip, castId };
@@ -251,7 +276,7 @@ function pose(P, p) {
 
 /* ------------------------------------------------------------ papan nama (teks) */
 function signMesh(text, color, w, h) {
-  const px = 64, cv = document.createElement('canvas');
+  const px = 160, cv = document.createElement('canvas');
   cv.width = Math.max(64, Math.round(w * px)); cv.height = Math.round(h * px);
   const c = cv.getContext('2d');
   c.fillStyle = color; c.fillRect(0, 0, cv.width, cv.height);
@@ -262,8 +287,9 @@ function signMesh(text, color, w, h) {
   c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(text, cv.width / 2, cv.height / 2 + fs * 0.06);
   const tex = new THREE.CanvasTexture(cv);
-  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ map: tex }));
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = renderer ? renderer.capabilities.getMaxAnisotropy() : 4;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 }));
+  m.receiveShadow = true;
   return m;
 }
 // papan berdiri menghadap +Z (ke depan), bawah papan setinggi `lift` dari lantai
@@ -442,10 +468,20 @@ S3.build = function (s) {
     }
   }
 
-  staticGroup.add(b.mesh(S3.mat));
+  const main = b.mesh(S3.mat);
   rearMesh = rear.mesh(S3.mat); leftMesh = left.mesh(S3.mat);
-  staticGroup.add(rearMesh, leftMesh);
+  for (const m of [main, rearMesh, leftMesh]) { m.castShadow = true; m.receiveShadow = true; }
+  staticGroup.add(main, rearMesh, leftMesh);
   scene.add(staticGroup);
+  // matahari: frustum bayangan pas menutupi seluruh denah
+  const cx = (W / 2) * U, cz = (H / 2) * U, rad = (Math.hypot(W, H) / 2 + 2) * U;
+  sun.target.position.set(cx, 0, cz);
+  sun.position.set(cx + SUN.x * rad * 2, SUN.y * rad * 2, cz + SUN.z * rad * 2);
+  const sc = sun.shadow.camera;
+  sc.left = -rad; sc.right = rad; sc.top = rad; sc.bottom = -rad; sc.near = rad * 0.5; sc.far = rad * 4;
+  sc.updateProjectionMatrix();
+  sun.shadow.needsUpdate = true;
+  S3.radius = rad;
   S3.dirty = false;
 };
 
@@ -454,8 +490,10 @@ S3.build = function (s) {
 S3.render = function (v, list) {
   if (!S3.ready) return;
   const cw = v.w, ch = v.h;
-  if (glCanvas.width !== Math.round(cw * v.dpr) || glCanvas.height !== Math.round(ch * v.dpr)) {
-    renderer.setPixelRatio(v.dpr); renderer.setSize(cw, ch, false);
+  const pr = pixelRatio(v.dpr, cw, ch);
+  if (glCanvas.width !== Math.round(cw * pr) || glCanvas.height !== Math.round(ch * pr)) {
+    renderer.setPixelRatio(pr); renderer.setSize(cw, ch, false);
+    if (composer) { composer.setPixelRatio(pr); composer.setSize(cw, ch); }
   }
   // kamera: basis r (kanan), u (atas), back (ke arah penonton) — identik dengan proj() di render.js
   const c = v.CYA, sn = v.SYA, SP = v.SP, CP = v.CP;
@@ -466,7 +504,8 @@ S3.render = function (v, list) {
   const z = v.cam.zoom;
   camera.left = v.cam.x - v.geo.OX; camera.right = v.cam.x + cw / z - v.geo.OX;
   camera.top = v.geo.OY - v.cam.y; camera.bottom = v.geo.OY - v.cam.y - ch / z;
-  camera.near = 1; camera.far = D * 2;
+  const rad = S3.radius || 3000;
+  camera.near = D - rad * 1.5; camera.far = D + rad * 1.5;
   camera.updateProjectionMatrix(); camera.updateMatrixWorld();
   // dinding yang menghalangi pandangan disembunyikan (seperti rumah boneka)
   if (rearMesh) rearMesh.visible = back.z > -0.05;
@@ -486,8 +525,50 @@ S3.render = function (v, list) {
     pose(P, it.pose);
   }
   for (const [id, P] of people) if (!seen.has(id)) { scene.remove(P.root); people.delete(id); }
-  renderer.render(scene, camera);
+  if (S3.quality >= 2 && composer) composer.render();
+  else renderer.render(scene, camera);
+  adapt();
 };
+
+/* ------------------------------------------------------------ kualitas */
+const SUN = new THREE.Vector3(-0.7, 0.8, -0.45).normalize(); // dari kiri-belakang → bayangan jatuh ke arah penonton
+function pixelRatio(dpr, w, h) {
+  if (S3.quality === 0) return Math.min(dpr, 1.25);
+  // HD: supersampling ringan di layar biasa, dibatasi ± 4 juta piksel
+  const want = S3.quality >= 2 ? Math.max(dpr, 1.5) : dpr;
+  return Math.max(1, Math.min(want, 2, Math.sqrt(4.2e6 / Math.max(1, w * h))));
+}
+function applyQuality() {
+  const q = S3.quality;
+  renderer.shadowMap.enabled = q >= 1;
+  sun.castShadow = q >= 1;
+  S3.mat.needsUpdate = true; charMat.needsUpdate = true;
+  scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+  if (q >= 2 && !composer) {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    aoPass = new GTAOPass(scene, camera, glCanvas.clientWidth || 800, glCanvas.clientHeight || 600);
+    aoPass.updateGtaoMaterial({ radius: 0.55 * U, distanceExponent: 1.4, thickness: 1.2 * U, scale: 1.1, samples: 16, distanceFallOff: 1 });
+    aoPass.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
+    aoPass.blendIntensity = 0.85;
+    composer.addPass(aoPass);
+    composer.addPass(new OutputPass());
+  }
+  glCanvas.width = 0; // paksa ukur ulang resolusi pada frame berikutnya
+}
+// turunkan kualitas otomatis bila rata-rata frame > 40 ms selama ± 2 detik
+function adapt() {
+  const now = performance.now(), dt = now - lastT;
+  lastT = now;
+  if (dt > 200 || document.hidden || S3.autoAdapt === false) return; // tab tidak aktif / jeda
+  frames++;
+  slow = slow * 0.95 + (dt > 40 ? 1 : 0) * 0.05;
+  if (frames > 120 && slow > 0.6 && S3.quality > 0) {
+    S3.setQuality(S3.quality - 1, false);
+    console.info('Grafis 3D diturunkan otomatis ke tingkat', S3.quality);
+    if (VO.ui && VO.ui.toast) VO.ui.toast('Grafis 3D diturunkan agar tetap lancar', 'layers');
+  }
+}
 S3.show = function (on) { if (glCanvas) glCanvas.style.visibility = on ? 'visible' : 'hidden'; };
 
 /* ------------------------------------------------------------ init */
@@ -498,17 +579,24 @@ S3.init = async function (canvas2d) {
     glCanvas = document.createElement('canvas');
     glCanvas.className = 'office3d';
     canvas2d.parentNode.insertBefore(glCanvas, canvas2d);
-    renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, alpha: true });
+    renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.setClearColor(0x000000, 0);
     scene = new THREE.Scene();
-    // sedikit diredupkan agar tidak silau di atas latar mode gelap
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x8f99a3, 1.4));
-    const sun = new THREE.DirectionalLight(0xfff6ea, 1.6);
-    sun.position.set(-0.35, 1, 0.55); scene.add(sun);
+    // cahaya lingkungan (pantulan lembut seperti studio foto) + langit/lantai + matahari berbayang
+    const pm = new THREE.PMREMGenerator(renderer);
+    scene.environment = pm.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+    pm.dispose();
+    scene.add(new THREE.HemisphereLight(0xf4f8ff, 0x6d6255, 0.7));
+    sun = new THREE.DirectionalLight(0xfff1dc, 2.3);
+    sun.shadow.mapSize.set(4096, 4096);
+    sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6; sun.shadow.radius = 3;
+    scene.add(sun, sun.target);
     camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 1000);
-    S3.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-    charMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    S3.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0, envMapIntensity: 0.1 });
+    charMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, envMapIntensity: 0.25 });
+    applyQuality();
     await load();
     S3.ready = true; S3.dirty = true;
   } catch (e) {

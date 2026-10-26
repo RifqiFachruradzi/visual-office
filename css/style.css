@@ -588,3 +588,65 @@ body.ruang { color-scheme: dark; }
 .ruang #resultBody .eview ~ * { display: none; }
 .ruang .eview > .btns { position: sticky; bottom: -12px; margin: 0 -12px -12px; padding: 12px; background: var(--input); border-top: 1px solid var(--line-2); display: flex; gap: 8px; z-index: 1; }
 .ruang .eview > .btns .spacer { flex: 1; }
+
+/* ---- kartu dashboard agen (muncul di samping karakter saat diklik) */
+.ruang .insp.agentcard { width: 318px; padding: 14px; border-radius: 18px; max-height: calc(100% - 72px); }
+.ruang .insp.agentcard.anchored { transition: left .12s linear, top .12s linear; }
+.ruang .insp.agentcard::-webkit-scrollbar { width: 6px; }
+.agentcard .ac-head { display: flex; align-items: center; gap: 10px; }
+.agentcard .avatar.round { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--accent); background: var(--sel-bg); }
+.agentcard .avatar.round img { width: 40px; height: 40px; }
+.agentcard .ac-id { flex: 1; min-width: 0; }
+.agentcard .insp-name { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agentcard .insp-role { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agentcard .ac-x { width: 32px; height: 32px; flex: none; border-radius: 10px; }
+.agentcard .ac-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 10px; }
+.agentcard .state, .agentcard .tag { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--panel-2); border: 1px solid var(--line-2); color: var(--soft); }
+.agentcard .state i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.agentcard .state.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.agentcard .state.ok i { animation: acPulse 1.4s ease-in-out infinite; }
+.agentcard .state.info { color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); border-color: color-mix(in srgb, var(--info) 30%, transparent); }
+.agentcard .state.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+.agentcard .state.muted { color: var(--muted); }
+.agentcard .tag { font-weight: 500; color: var(--muted); }
+@keyframes acPulse { 50% { opacity: .35; } }
+.agentcard .ac-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.agentcard .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.agentcard .stat span { font-size: 11.5px; color: var(--muted); }
+.agentcard .stat b { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.agentcard .stat i { font-style: normal; font-size: 11px; color: var(--danger); }
+.agentcard .focus { margin-top: 10px; padding: 10px 11px; border-radius: 12px; background: var(--sel-bg); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); }
+.agentcard .focus span { font-size: 11.5px; color: var(--accent); font-weight: 600; }
+.agentcard .focus b { display: block; font-size: 13px; font-weight: 600; margin: 2px 0 8px; }
+.agentcard .bar { height: 5px; border-radius: 99px; background: var(--line-2); overflow: hidden; }
+.agentcard .bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.agentcard .bar.busy i { animation: acBusy 1.3s ease-in-out infinite; }
+@keyframes acBusy { 0% { transform: translateX(-100%); } 100% { transform: translateX(290%); } }
+.agentcard blockquote { margin: 10px 0 0; padding: 0; font-size: 13px; line-height: 1.45; color: var(--soft); }
+.agentcard blockquote span { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
+.agentcard .ac-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.agentcard .ac-actions button { height: 40px; border-radius: 12px; justify-content: center; font-weight: 600; }
+.agentcard .ac-actions .wide { grid-column: 1 / -1; }
+.agentcard .ac-actions .ghost { background: transparent; border: 1px dashed var(--line-2); color: var(--muted); font-weight: 500; }
+.agentcard .ac-actions .ghost:hover { color: var(--text); border-color: var(--hover); }
+.agentcard .ac-more { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.agentcard .ac-more summary { cursor: pointer; font-size: 12.5px; color: var(--muted); padding: 4px 0; }
+.agentcard .ac-more summary:hover { color: var(--text); }
+.agentcard .ac-more .kv { margin-top: 6px; }
+@media (max-width: 900px) {
+  .ruang .insp.agentcard { left: 12px !important; top: auto !important; bottom: 12px; width: calc(100% - 24px); max-height: 70%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agentcard .state.ok i, .agentcard .bar.busy i { animation: none; }
+  .ruang .insp.agentcard.anchored { transition: none; }
+}
+.agentcard blockquote.hint { color: var(--muted); }
+@media (max-width: 900px) {
+  .ruang .insp.agentcard { padding: 12px; max-height: calc(100% - 70px); }
+  .agentcard .tag, .agentcard blockquote, .agentcard .ac-more { display: none; }
+  .agentcard .ac-stats { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .agentcard .stat { padding: 7px 8px; }
+  .agentcard .stat span { font-size: 10.5px; }
+  .agentcard .stat b { font-size: 17px; }
+  .agentcard .ac-actions { margin-top: 10px; }
+}

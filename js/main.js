@@ -37,9 +37,12 @@
         : sel.kind === 'division' ? s.divisions.find((d) => d.id === sel.id)?.zone
         : sel.kind === 'facility' ? s.facilities.find((d) => d.id === sel.id) : null;
       if (rect) p = { x: (rect.x + rect.w / 2) * T, y: (rect.y + rect.h / 2) * T };
-      if (p) R.focus($('office'), p.x, p.y);
+      // karyawan: kamera terbang mendekat, karakter sedikit ke kiri agar kartu dashboard muat di kanan
+      if (p && sel.kind === 'agent') app.flyTo(p, Math.max(R.cam.zoom, 1.35), window.innerWidth > 900 ? 0.38 : 0.5);
+      else if (p) R.focus($('office'), p.x, p.y);
     }
     app._dirty = true;
+    if (VO.ui && VO.ui.renderInspector) VO.ui.renderInspector();
   };
 
   // perbesar zona divisi agar memuat semua ruang departemennya
@@ -152,6 +155,7 @@
       last = now;
       sim.update(app.state, dt);
       R.draw(canvas, app.state, app.ui);
+      VO.ui.placeInspector();
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -259,11 +263,34 @@
     VO.ui.toast(v === '2d' ? 'Tampilan 2D (denah dari atas)' : 'Tampilan 3D (isometrik)', v === '2d' ? 'layout' : 'layers');
   };
 
+  // Kamera terbang halus ke satu titik dunia (fx = posisi horizontal titik di layar, 0..1)
+  let camAnim = null;
+  app.stopCam = function () { if (camAnim) cancelAnimationFrame(camAnim); camAnim = null; };
+  app.flyTo = function (p, zoom, fx = 0.5) {
+    const c = $('office'), W = c.clientWidth, H = c.clientHeight;
+    zoom = VO.clamp(zoom, 0.2, 3);
+    const to = R.camFor(c, p.x, p.y, zoom, fx);
+    const z0 = R.cam.zoom, c0 = { x: R.cam.x + W / (2 * z0), y: R.cam.y + H / (2 * z0) };
+    const c1 = { x: to.x + W / (2 * zoom), y: to.y + H / (2 * zoom) };
+    const t0 = performance.now();
+    app.stopCam();
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / 700), e = 1 - Math.pow(1 - k, 3);
+      const z = z0 + (zoom - z0) * e;
+      R.cam.zoom = z;
+      R.cam.x = c0.x + (c1.x - c0.x) * e - W / (2 * z);
+      R.cam.y = c0.y + (c1.y - c0.y) * e - H / (2 * z);
+      camAnim = k < 1 ? requestAnimationFrame(step) : null;
+    };
+    camAnim = requestAnimationFrame(step);
+  };
+
   // Tombol + / − : zoom di titik tengah layar, dengan animasi halus
   let zoomAnim = null;
   app.zoomBy = function (f) {
     const c = $('office');
     const sx = c.clientWidth / 2, sy = c.clientHeight / 2;
+    app.stopCam();
     const target = VO.clamp((zoomAnim ? zoomAnim.target : R.cam.zoom) * f, 0.2, 3);
     const start = performance.now(), from = R.cam.zoom;
     if (zoomAnim) cancelAnimationFrame(zoomAnim.raf);
@@ -313,6 +340,14 @@
     $('modeView').onclick = () => setMode(false);
     $('modeEdit').onclick = () => setMode(true);
     $('ambient').onchange = (e) => { s().settings.ambient = e.target.checked; app.changed(); };
+    // kualitas grafis 3D disimpan per perangkat (bukan di data kantor)
+    try { $('gfx').value = localStorage.getItem('vo.gfx') ?? '2'; } catch { /* tanpa penyimpanan */ }
+    $('gfx').onchange = (e) => {
+      const q = Number(e.target.value);
+      if (VO.scene3d && VO.scene3d.setQuality) VO.scene3d.setQuality(q);
+      else try { localStorage.setItem('vo.gfx', String(q)); } catch { /* tanpa penyimpanan */ }
+      VO.ui.toast('Grafis 3D: ' + ['Hemat', 'Sedang', 'HD'][q], 'layers');
+    };
     $('aiMode').onchange = (e) => {
       s().settings.aiMode = e.target.checked;
       s().settings.aiModeTouched = true;
@@ -530,6 +565,7 @@
 
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
+      app.stopCam();
       const { sx, sy } = pos(e);
       const before = R.screenToIso(sx, sy);
       R.cam.zoom = VO.clamp(R.cam.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), 0.2, 3);
@@ -539,6 +575,7 @@
 
     canvas.addEventListener('pointerdown', (e) => {
       canvas.setPointerCapture(e.pointerId);
+      app.stopCam();
       const { sx, sy } = pos(e);
       const w = R.screenToWorld(sx, sy);
       const s = app.state;
@@ -612,11 +649,7 @@
   function clickSelect(w) {
     const s = app.state;
     const p = R.hitPerson(s, w.x, w.y);
-    if (p) {
-      app.select({ kind: 'agent', id: p.id });
-      if (p.id !== 'boss') VO.chat.open(p.id); // klik karyawan = buka chat
-      return;
-    }
+    if (p) return app.select({ kind: 'agent', id: p.id }, true); // klik karyawan = kamera mendekat + kartu dashboard
     const hit = hitTest(s, w.x, w.y);
     if (hit && ['dept', 'facility', 'division'].includes(hit.kind)) return app.select({ kind: hit.kind, id: hit.obj.id });
     app.select(null);

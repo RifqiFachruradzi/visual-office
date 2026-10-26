@@ -376,30 +376,7 @@
     } else if (sel.kind === 'agent') {
       const a = VO.findEntity(s, sel.id);
       if (!a) return VO.app.select(null);
-      const rt = VO.sim.rt.get(a.id);
-      const dept = s.departments.find((d) => d.id === a.deptId);
-      const div = s.divisions.find((d) => d.id === a.divisionId);
-      const model = VO.MODELS.find((m) => m.id === a.model)?.label || a.model;
-      const running = s.tasks.flatMap((t) => t.subtasks.filter((st) => st.agentId === a.id && st.status === 'working').map((st) => t.title));
-      const icon = a.id === 'boss' ? 'crown' : a.isDirector ? 'briefcase' : a.isLead ? 'star' : a.live ? 'live' : 'bot';
-      h = `<div class="insp-head"><div class="avatar portrait"><img src="${VO.render.portrait(a)}" alt="" /></div><div><div class="insp-name">${esc(a.name)}</div><div class="insp-role">${esc(a.role)}</div></div></div>
-        <div class="kv">
-          <span>Status</span><span>${esc(rt?.liveTool && rt.liveTool !== 'thinking' ? 'Pakai tool: ' + rt.liveTool : STATUS_TXT[rt?.status] || rt?.status || '-')}</span>
-          ${a.id !== 'boss' ? `<span>Model</span><span>${esc(model)}</span>` : `<span>Peran</span><span>Kamu — pemberi perintah</span>`}
-          ${div ? `<span>Divisi</span><span>${esc(div.name)}</span>` : ''}
-          ${dept ? `<span>Departemen</span><span>${esc(dept.name)}</span>` : ''}
-          ${running.length ? `<span>Mengerjakan</span><span>${running.map(esc).join('<br/>')}</span>` : ''}
-          ${a.prompt ? `<span>Instruksi</span><span>${esc(a.prompt)}</span>` : ''}
-        </div>
-        ${a.memory && a.memory.length ? `<div class="memory"><b>${VO.icon('brain')} Ingatan (${a.memory.length})</b>${a.memory.map((m) => `<div class="m">${esc(m.text)}</div>`).join('')}</div>` : ''}
-        <div class="btns">
-          <button class="small" data-i="edit">${VO.icon('edit')} Edit</button>
-          ${a.id !== 'boss' ? `<button class="small primary" data-i="chat">${VO.icon('chat')} Chat</button>` : ''}
-          ${a.id !== 'boss' ? `<button class="small" data-i="assign">${VO.icon('task')} Beri tugas</button>` : ''}
-          ${a.deptId && !a.isLead && !a.live ? `<button class="small" data-i="lead">${VO.icon('star')} Jadikan lead</button>` : ''}
-          ${a.memory && a.memory.length ? `<button class="small" data-i="forget">${VO.icon('eraser')} Lupakan</button>` : ''}
-          ${a.id !== 'boss' ? `<button class="small danger" data-i="del">${VO.icon('trash')} Hapus</button>` : ''}
-        </div>`;
+      h = agentCard(s, a);
     } else if (sel.kind === 'dept') {
       const d = s.departments.find((x) => x.id === sel.id);
       if (!d) return VO.app.select(null);
@@ -425,6 +402,103 @@
     }
     if (el._html !== h) { el.innerHTML = h; el._html = h; }
     el.classList.toggle('noselect', !sel); // kartu melayang di atas kantor hanya saat ada yang dipilih
+    el.classList.toggle('agentcard', !!sel && sel.kind === 'agent');
+    if (!sel || sel.kind !== 'agent') { el.style.left = el.style.top = ''; el.classList.remove('anchored'); }
+  };
+
+  /* ------------------------------------------------------------ dashboard agen (kartu melayang) */
+  const STATUS_TONE = { working: 'ok', meeting: 'info', briefing: 'info', reporting: 'info', walking: 'muted', chat: 'warn', coffee: 'warn', break: 'warn', idle: 'muted' };
+  function agentStats(s, a) {
+    const mine = [];
+    for (const t of s.tasks) for (const st of t.subtasks) if (st.agentId === a.id) mine.push({ st, t });
+    const done = mine.filter((x) => x.st.status === 'done').length;
+    const failed = mine.filter((x) => x.st.status === 'failed').length;
+    const open = mine.filter((x) => x.st.status === 'working' || x.st.status === 'queued');
+    const last = mine.find((x) => x.st.status === 'done' && x.st.output); // s.tasks terbaru di depan
+    return {
+      done, failed, open, last,
+      rate: done + failed ? Math.round((done / (done + failed)) * 100) : null,
+      docs: s.docs.filter((d) => d.authorId === a.id).length,
+    };
+  }
+  const tile = (label, val, sub) => `<div class="stat"><span>${label}</span><b>${val}</b>${sub ? `<i>${sub}</i>` : ''}</div>`;
+  const clip = (t, n) => { t = String(t || '').replace(/[#*`>_]+/g, '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+  function agentCard(s, a) {
+    const rt = VO.sim.rt.get(a.id);
+    const boss = a.id === 'boss';
+    const dept = s.departments.find((d) => d.id === a.deptId);
+    const div = s.divisions.find((d) => d.id === a.divisionId);
+    const model = VO.MODELS.find((m) => m.id === a.model)?.label || a.model;
+    const st = rt?.status || 'idle';
+    const statusTxt = rt?.liveTool && rt.liveTool !== 'thinking' ? 'Pakai tool: ' + rt.liveTool : STATUS_TXT[st] || st;
+    const rank = boss ? 'Boss · Kamu' : a.isDirector ? 'Direktur' : a.isLead ? 'Ketua tim' : a.live ? 'Agen live' : 'AI agent';
+    let stats, focus = '', quote = '';
+    if (boss) {
+      const all = s.tasks.length, done = s.tasks.filter((t) => t.status === 'done').length;
+      const run = s.tasks.filter((t) => !['done', 'failed'].includes(t.status)).length;
+      stats = tile('Perintah', all) + tile('Selesai', done) + tile('Berjalan', run) + tile('Dokumen', s.docs.length);
+    } else {
+      const k = agentStats(s, a);
+      stats = tile('Tugas selesai', k.done) + tile('Tingkat sukses', k.rate == null ? '—' : k.rate + '%', k.failed ? `${k.failed} gagal` : '')
+        + tile('Antrean', k.open.length) + tile('Dokumen', k.docs);
+      const cur = k.open.find((x) => x.st.status === 'working') || k.open[0];
+      if (cur) {
+        const pct = Math.round((cur.st.progress || 0) * 100);
+        focus = `<div class="focus"><span>${cur.st.status === 'working' ? 'Sedang mengerjakan' : 'Menunggu giliran'}</span><b>${esc(clip(cur.t.title, 70))}</b>
+          <div class="bar${cur.st.status === 'working' && !pct ? ' busy' : ''}"><i style="width:${pct || (cur.st.status === 'working' ? 35 : 0)}%"></i></div></div>`;
+      }
+      if (k.last) quote = `<blockquote><span>Hasil terakhir</span>“${esc(clip(k.last.st.output, 140))}”</blockquote>`;
+      else if (a.memory && a.memory.length) quote = `<blockquote><span>Ingatan terbaru</span>“${esc(clip(a.memory[0].text, 140))}”</blockquote>`;
+      else if (!cur) quote = `<blockquote class="hint"><span>Belum ada hasil kerja</span>Beri tugas pertama, hasilnya akan tampil di sini.</blockquote>`;
+    }
+    const docsN = boss ? s.docs.length : s.docs.filter((d) => d.authorId === a.id).length;
+    return `<div class="ac-head">
+        <div class="avatar portrait round"><img src="${VO.render.portrait(a)}" alt="" /></div>
+        <div class="ac-id"><div class="insp-name">${esc(a.name)}</div><div class="insp-role">${boss ? 'Pemimpin kantor · Kamu' : `${esc(a.role)} · ${rank}`}</div></div>
+        <button class="icon-btn ac-x" data-i="close" title="Tutup (Esc)" aria-label="Tutup">${VO.icon('x')}</button>
+      </div>
+      <div class="ac-tags"><span class="state ${STATUS_TONE[st] || 'muted'}"><i></i>${esc(statusTxt)}</span>${!boss && model ? `<span class="tag">${esc(model)}</span>` : ''}${dept ? `<span class="tag">${esc(dept.name)}</span>` : div ? `<span class="tag">${esc(div.name)}</span>` : ''}</div>
+      <div class="ac-stats">${stats}</div>
+      ${focus}${quote}
+      <div class="ac-actions">
+        ${boss ? `<button class="primary wide" data-i="command">${VO.icon('megaphone')} Beri perintah ke kantor</button>`
+          : `<button class="primary wide" data-i="assign">${VO.icon('task')} Beri tugas</button>
+             <button data-i="chat">${VO.icon('chat')} Chat</button><button data-i="edit">${VO.icon('edit')} Edit</button>`}
+        ${docsN ? `<button class="ghost wide" data-i="docs">${VO.icon('file')} Lihat dokumen (${docsN})</button>` : ''}
+      </div>
+      ${boss ? '' : `<details class="ac-more"><summary>Detail & pengaturan</summary>
+        <div class="kv">
+          <span>Model</span><span>${esc(model)}</span>
+          ${div ? `<span>Divisi</span><span>${esc(div.name)}</span>` : ''}
+          ${dept ? `<span>Departemen</span><span>${esc(dept.name)}</span>` : ''}
+          ${a.prompt ? `<span>Instruksi</span><span>${esc(a.prompt)}</span>` : ''}
+        </div>
+        ${a.memory && a.memory.length ? `<div class="memory"><b>${VO.icon('brain')} Ingatan (${a.memory.length})</b>${a.memory.map((m) => `<div class="m">${esc(m.text)}</div>`).join('')}</div>` : ''}
+        <div class="btns">
+          ${a.deptId && !a.isLead && !a.live ? `<button class="small" data-i="lead">${VO.icon('star')} Jadikan lead</button>` : ''}
+          ${a.memory && a.memory.length ? `<button class="small" data-i="forget">${VO.icon('eraser')} Lupakan</button>` : ''}
+          <button class="small danger" data-i="del">${VO.icon('trash')} Hapus</button>
+        </div></details>`}`;
+  }
+
+  // Tempelkan kartu agen di samping karakternya (dipanggil tiap frame dari loop utama)
+  ui.placeInspector = function () {
+    const el = $('inspector'), sel = VO.app.sel;
+    if (!el || !sel || sel.kind !== 'agent' || window.innerWidth <= 900) return;
+    const rt = VO.sim.rt.get(sel.id), sc = rt && rt._screen, cv = $('office');
+    if (!sc || !cv) return;
+    const R = VO.render, z = R.cam.zoom;
+    const box = el.offsetParent ? el.offsetParent.getBoundingClientRect() : { left: 0, top: 0 };
+    const cr = cv.getBoundingClientRect();
+    const ox = cr.left - box.left, oy = cr.top - box.top;
+    const px = ox + (sc.x - R.cam.x) * z, py = oy + (sc.head - R.cam.y) * z;
+    const w = el.offsetWidth, h = el.offsetHeight, W = cr.width + ox, H = cr.height + oy;
+    let x = px + 72; // beri ruang untuk label nama di kanan karakter
+    if (x + w > W - 12) x = px - 56 - w; // tidak muat di kanan → taruh di kiri karakter
+    x = VO.clamp(x, ox + 12, W - w - 12);
+    const y = VO.clamp(py - 40, oy + 60, Math.max(oy + 60, H - h - 12));
+    el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
+    el.classList.add('anchored');
   };
 
   ui.bindInspector = function () {
@@ -433,6 +507,14 @@
       const sel = VO.app.sel;
       if (!b || !sel) return;
       const i = b.dataset.i;
+      if (i === 'close') return VO.app.select(null);
+      if (i === 'docs') {
+        const a = VO.findEntity(S(), sel.id);
+        $('docSearch').value = a && a.id !== 'boss' ? a.name : '';
+        ui.showView('docs'); ui.renderDocs();
+        return;
+      }
+      if (i === 'command') { const t = $('taskTitle'); if (t) t.focus(); return; }
       if (i === 'edit') ({ agent: ui.editEntity, division: ui.editDivision, dept: ui.editDept, facility: ui.editFacility })[sel.kind](sel.id);
       if (i === 'del') ui.remove(sel.kind, sel.id);
       if (i === 'lead') ui.makeLead(sel.id);
