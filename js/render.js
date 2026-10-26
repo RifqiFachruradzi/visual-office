@@ -2325,6 +2325,33 @@
     ctx.lineWidth = 1;
   }
 
+  /* ------------------------------------------------------------ label ruangan (overlay 2D di atas WebGL) */
+  // Pil gelap melayang dengan teks mono berwarna ("DIGITAL MARKETING · 5"): selalu tajam & terbaca,
+  // ukurannya di layar hampir tetap (± 10–14 px) berapa pun zoom-nya.
+  const FAC_COL = { boss: '#7fd39a', meeting: '#8fd0d6', pantry: '#f0c27d', lounge: '#8fd0d6', pool: '#6fe0d2', billiard: '#7fd39a' };
+  function drawRoomLabels(ctx, s) {
+    const z = R.cam.zoom, fs = VO.clamp(8.5 + 3.5 * z, 9.5, 14) / z;
+    const items = [];
+    for (const v of s.divisions) items.push({ t: v.name.toUpperCase(), c: mix(v.color, '#ffffff', 0.45), x: v.zone.x + v.zone.w / 2, y: v.zone.y + 0.2, h: 2.25, k: 1.1 });
+    for (const d of s.departments) {
+      const div = s.divisions.find((v) => v.id === d.divisionId), r = d.room;
+      items.push({ t: `${d.name.toUpperCase()} · ${VO.deptAgents(s, d.id).length}`, c: mix(div ? div.color : '#6ca1dd', '#ffffff', 0.35), x: r.x + r.w / 2, y: r.y + 0.3, h: 1.3, k: 1 });
+    }
+    for (const f of s.facilities) items.push({ t: f.name.toUpperCase(), c: FAC_COL[f.type] || '#c9d6dc', x: f.x + f.w / 2, y: f.y + 0.8, h: 1.7, k: 1 });
+    ctx.save();
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    try { ctx.letterSpacing = (fs * 0.08).toFixed(2) + 'px'; } catch (e) { /* tidak didukung */ }
+    for (const it of items) {
+      const f = fs * it.k, p = iso(it.x, it.y, it.h * U);
+      ctx.font = `bold ${f}px 'Courier New', ui-monospace, monospace`;
+      const w = ctx.measureText(it.t).width + f * 1.3, h = f * 1.75;
+      ctx.fillStyle = 'rgba(32,38,44,0.86)'; rr(ctx, p.x - w / 2, p.y - h / 2, w, h, h * 0.28); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = Math.max(0.5, f * 0.06); ctx.stroke();
+      ctx.fillStyle = it.c; ctx.fillText(it.t, p.x, p.y + f * 0.04);
+    }
+    ctx.restore();
+  }
+
   /* ------------------------------------------------------------ frame 3D (WebGL + overlay 2D) */
   const S3 = () => VO.scene3d;
   let canvasDirty = true;
@@ -2359,6 +2386,7 @@
       list.push({ id: e.id, cast: VO.castOf(e), boss: e.id === 'boss', x: fx * U, y: elevAt(fx, fy), z: fy * U, rot: Math.atan2(hx, hy), pose });
     }
     S3().render({ geo, CYA, SYA, SP, CP, persp: PERSP, cam: R.cam, w: canvas.clientWidth, h: canvas.clientHeight, dpr }, list);
+    if (!ui.edit) drawRoomLabels(ctx, s);
     if (ui.edit) drawEditOverlay(ctx, s, ui);
     layoutLabels(ctx, people);
     for (const [e, rt] of people) drawPersonOverlay(ctx, e, rt, now);

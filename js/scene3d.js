@@ -112,6 +112,15 @@ class Batch {
     const sy = y1 == null ? 1 : (y1 - y0) / (pf.max.y - pf.min.y || 1);
     this.add(pf, { ...o, sx, sy, sz, x: x0 - pf.min.x * sx, y: y0 - pf.min.y * sy, z: z0 - pf.min.z * sz });
   }
+  // geometri three.js apa saja (bola, silinder), digeser ke (x, y, z) dan diberi satu warna
+  geom(g0, hex, x, y, z, sx = 1, sy = sx, sz = sx) {
+    const c = new THREE.Color(hex);
+    const g = (g0.index ? g0.toNonIndexed() : g0.clone()).scale(sx, sy, sz).translate(x, y, z);
+    g.computeVertexNormals();
+    const P = g.attributes.position.array, N = g.attributes.normal.array;
+    for (let i = 0; i < P.length; i++) { this.p.push(P[i]); this.n.push(N[i]); }
+    for (let i = 0; i < P.length; i += 3) this.c.push(c.r, c.g, c.b);
+  }
   box(x0, y0, z0, x1, y1, z1, hex) {
     const c = new THREE.Color(hex);
     const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0).toNonIndexed();
@@ -131,6 +140,148 @@ class Batch {
   }
 }
 
+/* ------------------------------------------------------------ meja: putih + dua monitor biru */
+const DESK_COL = [
+  [/desktop|front_edge/, '#f3f3ef'], [/leg|crossbeam/, '#d5d9dc'], [/monitor|stand|foot/, '#2b3442'],
+  [/display/, '#4f86e8'], [/ui_line/, '#cfe1ff'], [/keyboard/, '#e9ebee'], [/key_/, '#c3c8ce'], [/mouse/, '#e9ebee'],
+];
+function dualDesk(parts, desktop) {
+  const lin = (hex) => { const c = new THREE.Color(hex); return [c.r, c.g, c.b]; };
+  const recol = (p) => { const m = DESK_COL.find(([re]) => re.test(p.name)); return m ? { ...p, col: lin(m[1]) } : p; };
+  const isMon = (p) => /monitor|stand|foot|display|ui_line/.test(p.name);
+  const mon = parts.filter(isMon);
+  // sumbu lebar meja (x atau z) & lebar monitor → monitor kedua digeser di sampingnya
+  const ax = desktop.max.x - desktop.min.x >= desktop.max.z - desktop.min.z ? 0 : 2;
+  let lo = Infinity, hi = -Infinity;
+  for (const p of mon) { lo = Math.min(lo, ax ? p.min.z : p.min.x); hi = Math.max(hi, ax ? p.max.z : p.max.x); }
+  const off = (hi - lo) * 0.54;
+  const shift = (p, d) => {
+    const pos = new Float32Array(p.pos);
+    for (let i = ax; i < pos.length; i += 3) pos[i] += d;
+    return { ...p, pos };
+  };
+  const out = [...parts.filter((p) => !isMon(p)), ...mon.map((p) => shift(p, -off)), ...mon.map((p) => shift(p, off))].map(recol);
+  return prefab(out, desktop.c.x, 0, desktop.c.z);
+}
+
+/* ------------------------------------------------------------ tekstur (dibuat dari kanvas, dipakai ulang) */
+const texCache = new Map();
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function canvasTex(key, size, draw) {
+  if (texCache.has(key)) return texCache.get(key);
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  draw(cv.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = renderer ? renderer.capabilities.getMaxAnisotropy() : 8;
+  texCache.set(key, t);
+  return t;
+}
+// lantai papan kayu hangat: 1 tekstur = 4 × 4 m, papan selebar 25 cm, panjang acak, sambungan berselang
+const WOOD_M = 4;
+function woodTex() {
+  return canvasTex('wood', 1024, (c, S) => {
+    const r = rng(7), row = S / 16, tones = ['#dcab6e', '#d39f62', '#e2b57a', '#cd975a', '#d8a668', '#e6bb83'];
+    for (let j = 0; j < 16; j++) {
+      let x = -r() * 500;
+      while (x < S) {
+        const len = 300 + r() * 360;
+        c.fillStyle = tones[Math.floor(r() * tones.length)];
+        c.fillRect(x, j * row, len, row);
+        // serat kayu tipis
+        c.strokeStyle = 'rgba(120,70,25,0.10)'; c.lineWidth = 1.2;
+        for (let k = 0; k < 4; k++) { const yy = j * row + 6 + r() * (row - 12); c.beginPath(); c.moveTo(x + 8, yy); c.bezierCurveTo(x + len * 0.3, yy + (r() - 0.5) * 6, x + len * 0.7, yy + (r() - 0.5) * 6, x + len - 8, yy); c.stroke(); }
+        c.fillStyle = 'rgba(110,62,22,0.45)'; c.fillRect(x, j * row, 2.5, row); // sambungan ujung papan
+        x += len;
+      }
+      c.fillStyle = 'rgba(110,62,22,0.38)'; c.fillRect(0, j * row, S, 2.5); // celah antar papan
+      c.fillStyle = 'rgba(255,240,215,0.18)'; c.fillRect(0, j * row + 2.5, S, 2);
+    }
+  });
+}
+// karpet departemen: pastel warna divisi dengan taburan segitiga & titik (1 tekstur = 2 × 2 m)
+const CARPET_M = 2;
+function carpetTex(hex) {
+  return canvasTex('carpet' + hex, 512, (c, S) => {
+    const r = rng(parseInt(hex.slice(1), 16) || 3);
+    c.fillStyle = mixHex(hex, '#ffffff', 0.7); c.fillRect(0, 0, S, S);
+    const cols = [mixHex(hex, '#ffffff', 0.15), '#ffffff', mixHex(hex, '#ffffff', 0.35)];
+    for (let k = 0; k < 60; k++) {
+      const x = r() * S, y = r() * S, sz = 12 + r() * 18, a = r() * Math.PI * 2;
+      c.fillStyle = cols[k % cols.length]; c.globalAlpha = 0.8;
+      for (const [dx, dy] of [[0, 0], [S, 0], [-S, 0], [0, S], [0, -S]]) { // ulang di tepi agar tekstur menyambung
+        c.beginPath();
+        if (k % 3 === 2) c.arc(x + dx, y + dy, sz * 0.32, 0, 7);
+        else for (let v = 0; v < 3; v++) { const t = a + (v * Math.PI * 2) / 3; c[v ? 'lineTo' : 'moveTo'](x + dx + Math.cos(t) * sz * 0.6, y + dy + Math.sin(t) * sz * 0.6); }
+        c.fill();
+      }
+    }
+    c.globalAlpha = 1;
+  });
+}
+// bidang datar bertekstur (lantai/karpet) dari (x0, z0) ke (x1, z1) pada ketinggian y; tekstur selebar `m` meter
+function texPlane(tex, x0, z0, x1, z1, y, m) {
+  const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, y, (z0 + z1) / 2);
+  const uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, (x0 + uv.getX(i) * (x1 - x0)) / m, (z1 - uv.getY(i) * (z1 - z0)) / m);
+  const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0, envMapIntensity: 0.1 });
+  mat.userData.shared = true; // tekstur dipakai ulang antar-build — jangan di-dispose
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.scale.setScalar(U); mesh.receiveShadow = true;
+  return mesh;
+}
+
+/* ------------------------------------------------------------ dekorasi: tanaman bulat & dinding */
+const POT = new THREE.CylinderGeometry(0.17, 0.13, 0.32, 12);
+const BUSH = new THREE.IcosahedronGeometry(1, 1);
+function bush(b, x, y, z, k = 1) {
+  b.geom(POT, '#eeece6', x, y + 0.16 * k, z, k);
+  b.geom(BUSH, '#5aa864', x, y + 0.62 * k, z, 0.34 * k, 0.36 * k, 0.34 * k);
+  b.geom(BUSH, '#6dbb6f', x + 0.1 * k, y + 0.82 * k, z + 0.06 * k, 0.22 * k);
+}
+// dinding belakang lantai bawah (sisi depan mezanin, menghadap +z): poster, rak buku, pintu, dispenser, sticky notes
+function wallDecor(b, x0, x1, zw, skip) {
+  const free = (a, c) => !skip.some(([s0, s1]) => c > s0 && a < s1);
+  const items = ['posters', 'shelf', 'door', 'cooler', 'notes'];
+  let x = x0 + 1.2, k = 0;
+  while (x < x1 - 1.5) {
+    const kind = items[k % items.length], w = { posters: 2.4, shelf: 1.1, door: 1.0, cooler: 0.45, notes: 1.0 }[kind];
+    if (x + w > x1 - 0.8) break;
+    if (!free(x - 0.2, x + w + 0.2)) { x += 0.6; continue; }
+    const z = zw + 0.01;
+    if (kind === 'posters') {
+      ['#e2734f', '#6c74d8', '#2e3640', '#47ad86'].forEach((col, i) => {
+        const px = x + i * 0.62;
+        b.box(px, 1.05, z, px + 0.5, 1.75, z + 0.03, '#fbfaf6');
+        b.box(px + 0.05, 1.1, z + 0.03, px + 0.45, 1.7, z + 0.04, col);
+        b.box(px + 0.15, 1.38, z + 0.04, px + 0.35, 1.58, z + 0.05, mixHex(col, '#ffffff', 0.55));
+      });
+    } else if (kind === 'shelf') {
+      b.box(x, 0, z, x + w, 1.7, z + 0.34, '#c99a5f');
+      for (let r = 0; r < 4; r++) for (let i = 0; i < 6; i++) {
+        const bx = x + 0.08 + i * 0.16, by = 0.1 + r * 0.4;
+        b.box(bx, by, z + 0.2, bx + 0.12, by + 0.3 - (i % 3) * 0.04, z + 0.36, ['#e0735b', '#5f8fe0', '#e7c052', '#58b38c', '#c47ad2', '#f2efe6'][(i + r * 2) % 6]);
+      }
+    } else if (kind === 'door') {
+      b.box(x - 0.05, 0, z, x + w + 0.05, 2.15, z + 0.03, '#efe9df');
+      b.box(x, 0, z + 0.03, x + w, 2.08, z + 0.06, '#c69a68');
+      b.box(x + w - 0.18, 1.0, z + 0.06, x + w - 0.08, 1.06, z + 0.1, '#7d6a55');
+    } else if (kind === 'cooler') {
+      b.box(x, 0, z + 0.05, x + w, 1.0, z + 0.45, '#f4f4f1');
+      b.box(x + 0.06, 1.0, z + 0.1, x + w - 0.06, 1.42, z + 0.4, '#a8d6ef');
+      b.box(x + 0.15, 0.62, z + 0.45, x + 0.3, 0.7, z + 0.5, '#5f8fe0');
+    } else if (kind === 'notes') {
+      const r = rng(Math.round(x * 10));
+      for (let i = 0; i < 14; i++) {
+        const nx = x + r() * (w - 0.14), ny = 1.05 + r() * 0.75;
+        b.box(nx, ny, z, nx + 0.13, ny + 0.13, z + 0.015, ['#f7d84e', '#ff8fa3', '#7fd1f7', '#a6e37a', '#ffb067', '#c59bff'][i % 6]);
+      }
+    }
+    x += w + 2.2; k++;
+  }
+}
+
 /* ------------------------------------------------------------ muat aset */
 async function load() {
   const L = new GLTFLoader();
@@ -147,10 +298,6 @@ async function load() {
     const seats = pick(V, /^chair_seat/).sort((a, b) => Math.hypot(a.c.x - x, a.c.z - z) - Math.hypot(b.c.x - x, b.c.z - z));
     const s = seats[0];
     return prefab(pick(V, /^chair_/, (p) => near(p, s.c.x, s.c.z, 0.42) && Math.abs(p.c.y - s.c.y) < 0.8), s.c.x, s.min.y - 0.42, s.c.z);
-  };
-  const plantAt = (arr, x, z, floor) => {
-    const pl = pick(arr, /^planter/).sort((a, b) => Math.hypot(a.c.x - x, a.c.z - z) - Math.hypot(b.c.x - x, b.c.z - z))[0];
-    return prefab(pick(arr, /^(planter|soil|plant_stem|voxel_leaf)/, (p) => near(p, pl.c.x, pl.c.z, 0.45)), pl.c.x, floor, pl.c.z);
   };
   const desktop = one(V, /^division_agent_01_desktop/);
   const ddesk = one(V, /^director_desk/);
@@ -177,7 +324,7 @@ async function load() {
       stairs: prefab(stairs),
     },
     boss: prefab(partsOf(boss)), billiard: prefab(partsOf(billiard)), pool: prefab(partsOf(pool)),
-    desk: prefab(pick(V, /^division_agent_01_/), desktop.c.x, 0, desktop.c.z),
+    desk: dualDesk(pick(V, /^division_agent_01_/), desktop),
     dirDesk: prefab(pick(V, /^(director_desk|director_pedestal|director_agent_01_)/), ddesk.c.x, UP, ddesk.c.z),
     chair: chairAt(-9.9, -9.5),
     mTable: prefab(pick(V, /^(meeting_table|meeting_pedestal|meeting_notebook)/, (p) => p.c.x >= mt.min.x - 0.05 && p.c.x <= mt.max.x + 0.05), mt.c.x, UP, mt.c.z),
@@ -188,7 +335,6 @@ async function load() {
     sofa: prefab(pick(V, /^lounge_sofa/), sofaB.c.x, 0, sofaB.c.z),
     reception: prefab(pick(V, /^(reception_|sign_OFFICE|letter_OFFICE)/), rc.c.x, 0, rc.c.z),
     server: prefab(pick(V, /^server_/), rack.c.x, 0, rack.c.z),
-    plant: plantAt(V, -12.8, -10.4, UP),
   };
   A.cast = buildCast(cast);
 }
@@ -274,40 +420,12 @@ function pose(P, p) {
   } else if (p.type === 'cheer') { R(G.armL, 165 * deg); R(G.armR, 165 * deg); }
 }
 
-/* ------------------------------------------------------------ papan nama (teks) */
-function signMesh(text, color, w, h) {
-  const px = 160, cv = document.createElement('canvas');
-  cv.width = Math.max(64, Math.round(w * px)); cv.height = Math.round(h * px);
-  const c = cv.getContext('2d');
-  c.fillStyle = color; c.fillRect(0, 0, cv.width, cv.height);
-  c.fillStyle = 'rgba(245,243,232,0.96)';
-  let fs = Math.round(cv.height * 0.56);
-  c.font = `bold ${fs}px "Courier New", ui-monospace, monospace`;
-  while (c.measureText(text).width > cv.width * 0.9 && fs > 8) { fs -= 2; c.font = `bold ${fs}px "Courier New", ui-monospace, monospace`; }
-  c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillText(text, cv.width / 2, cv.height / 2 + fs * 0.06);
-  const tex = new THREE.CanvasTexture(cv);
-  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = renderer ? renderer.capabilities.getMaxAnisotropy() : 4;
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 }));
-  m.receiveShadow = true;
-  return m;
-}
-// papan berdiri menghadap +Z (ke depan), bawah papan setinggi `lift` dari lantai
-function addSign(b, text, color, cx, floorY, z, lift = 0.22, h = 0.62) {
-  const w = Math.max(1.6, text.length * 0.27 + 0.7);
-  b.box(cx - w / 2, floorY + lift, z - 0.08, cx + w / 2, floorY + lift + h, z, color);
-  const m = signMesh(text, color, w - 0.08, h - 0.08);
-  m.position.set(cx * U, (floorY + lift + h / 2) * U, (z + 0.006) * U);
-  m.scale.setScalar(U);
-  signGroup.add(m);
-}
-
 /* ------------------------------------------------------------ lantai zona + pembatas */
 const BORDER = '#f5f3e8';
-function zone(b, r, floorY, color, doors = [], hgt = 0.03) {
+function zone(b, r, floorY, color, doors = [], hgt = 0.03, rail = 0.19) {
   const x0 = r.x + 0.05, x1 = r.x + r.w - 0.05, z0 = r.y + 0.05, z1 = r.y + r.h - 0.05;
   if (color) b.box(x0, floorY, z0, x1, floorY + hgt, z1, color);
-  const y0 = floorY + 0.01, y1 = floorY + 0.19;
+  const y0 = floorY + 0.01, y1 = floorY + rail;
   // sisi depan/belakang dengan celah pintu 2 m
   const side = (z, gaps) => {
     let x = x0;
@@ -329,7 +447,7 @@ S3.build = function (s) {
   if (!S3.ready) return;
   if (staticGroup) {
     scene.remove(staticGroup);
-    staticGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.map) { o.material.map.dispose(); o.material.dispose(); } });
+    staticGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.map && !o.material.userData.shared) { o.material.map.dispose(); o.material.dispose(); } });
   }
   staticGroup = new THREE.Group(); signGroup = new THREE.Group(); staticGroup.add(signGroup);
   const b = new Batch(), rear = new Batch(), left = new Batch();
@@ -340,7 +458,8 @@ S3.build = function (s) {
   // --- gedung (office_empty.glb, disesuaikan dengan ukuran denah)
   b.fit(E.foundation, -0.2, E.foundation.min.y, -0.2, W + 0.2, null, H + 0.2);
   b.fit(E.lower, 0, E.lower.min.y, 0, W, null, H);
-  for (let j = M; j < H; j++) for (let i = 0; i < W; i++) if ((i + j) % 2 === 0) b.fit(E.tile, i + 0.01, E.tile.min.y, j + 0.01, i + 0.99, null, j + 0.99);
+  // lantai bawah: papan kayu hangat (tekstur), menggantikan ubin kotak-kotak
+  staticGroup.add(texPlane(woodTex(), 0, M, W, H, E.lower.max.y + 0.004, WOOD_M));
   const wallY = mz ? UP : 0;
   if (mz) {
     b.fit(E.wingBase, 0, 0, 0, W, UP - 0.02, M);
@@ -354,6 +473,9 @@ S3.build = function (s) {
     b.fit(E.rail, 0.05, E.rail.min.y, M - 0.05, mz.sx - 0.05, null, M + 0.02);
     // tangga: 2 tile (sx..sx+2), turun dari tepi mezanin (M) ke baris M+3
     b.fit(E.stairs, mz.sx - 0.03, 0, M, mz.sx + 2.03, null, M + 3);
+    // sisi depan mezanin = dinding belakang lantai bawah → dihias
+    wallDecor(b, 0.3, W - 0.3, M, [[mz.sx - 0.4, mz.sx + 2.4]]);
+    bush(b, 0.6, 0, M + 0.6); bush(b, W - 0.6, 0, M + 0.6);
   }
   rear.fit(E.rearWall, -0.1, wallY, -0.12, W + 0.1, wallY + (E.rearWall.max.y - E.rearWall.min.y), 0);
   const nWin = Math.max(1, Math.round(W / 5.6));
@@ -404,15 +526,15 @@ S3.build = function (s) {
       zone(b, f, fy, '#e5e9e8', VO.doorTiles(f, f));
       b.add(A.lounge, { x: cx, y: fy, z: cz - 0.2 });
     }
-    const signCol = { boss: '#508c62', meeting: '#6a8e92', pantry: '#b69264', lounge: '#6a8e92', pool: '#40b8ac', billiard: '#508c62' }[f.type] || '#6a8e92';
-    addSign(b, f.name.toUpperCase(), signCol, cx, fy, f.y + f.h - 0.05, 0.3);
   }
 
   // --- divisi & departemen
   for (const div of s.divisions) {
     const z = div.zone;
-    zone(b, z, 0, '#e5e9e8', VO.doorTiles(z, { type: 'zone' }));
-    addSign(b, div.name.toUpperCase(), mixHex(div.color, '#43515b', 0.15), z.x + z.w / 2, 0, z.y + 0.12);
+    // zona divisi: lantai kayu tetap terlihat, hanya list rendah sebagai batas + tanaman di sudut
+    zone(b, z, 0, null, VO.doorTiles(z, { type: 'zone' }), 0.03, 0.05);
+    bush(b, z.x + 0.5, 0, z.y + z.h - 0.5, 0.9);
+    bush(b, z.x + z.w - 0.5, 0, z.y + 0.55, 0.9);
     // meja direktur (meja eksekutif dari office_ai_expanded_v2), kursi di belakang menghadap tim
     const dd = div.directorDesk;
     if (dd) {
@@ -424,9 +546,13 @@ S3.build = function (s) {
     const div = s.divisions.find((x) => x.id === d.divisionId);
     const col = div ? div.color : '#6ca1dd';
     const r = d.room;
-    b.box(r.x + 0.15, 0.03, r.y + 0.15, r.x + r.w - 0.15, 0.04, r.y + r.h - 0.15, mixHex(col, '#e5e9e8', 0.72));
+    // karpet pastel bermotif + list warna divisi di tepinya
+    const kx0 = r.x + 0.15, kx1 = r.x + r.w - 0.15, kz0 = r.y + 0.15, kz1 = r.y + r.h - 0.15;
+    staticGroup.add(texPlane(carpetTex(col), kx0, kz0, kx1, kz1, 0.03, CARPET_M));
+    const edge = mixHex(col, '#ffffff', 0.25);
+    b.box(kx0, 0.004, kz0 - 0.05, kx1, 0.034, kz0, edge); b.box(kx0, 0.004, kz1, kx1, 0.034, kz1 + 0.05, edge);
+    b.box(kx0 - 0.05, 0.004, kz0 - 0.05, kx0, 0.034, kz1 + 0.05, edge); b.box(kx1, 0.004, kz0 - 0.05, kx1 + 0.05, 0.034, kz1 + 0.05, edge);
     const n = VO.deptAgents(s, d.id).length;
-    addSign(b, `${d.name.toUpperCase()} · ${n}`, col, r.x + r.w / 2, 0, r.y + 0.35, 0.05, 0.42);
     VO.deskSlots(r).slice(0, Math.max(n, 0)).forEach((sl) => {
       b.add(A.desk, { x: sl.desk.x + 0.5, y: 0, z: sl.desk.y + 0.5 });
       b.add(A.chair, { x: sl.chair.x + 0.5, y: 0, z: sl.chair.y + 0.5, rot: Math.PI });
@@ -437,13 +563,13 @@ S3.build = function (s) {
   const fr = VO.studioFront(s);
   if (fr) {
     b.add(A.reception, { x: fr.desk.x + fr.desk.w / 2, y: 0, z: H - 0.78 });
-    for (const p of fr.plants) b.add(A.plant, { x: p.x + 0.5, y: 0, z: p.y + 0.5 });
+    for (const p of fr.plants) bush(b, p.x + 0.5, 0, p.y + 0.5);
   }
 
   // --- perabot bebas
   for (const f of s.furniture) {
     const y = mz && f.y < M ? UP : 0, x = f.x + 0.5, z = f.y + 0.5;
-    if (f.type === 'plant') b.add(A.plant, { x, y, z });
+    if (f.type === 'plant') bush(b, x, y, z);
     else if (f.type === 'server') b.add(A.server, { x, y, z });
     else if (f.type === 'sofa') b.add(A.sofa, { x, y, z, sx: 0.32, sz: 0.9 });
     else if (f.type === 'bookshelf') {
