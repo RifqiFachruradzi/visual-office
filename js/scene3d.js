@@ -180,9 +180,11 @@ function canvasTex(key, size, draw) {
 }
 // lantai papan kayu hangat: 1 tekstur = 4 × 4 m, papan selebar 25 cm, panjang acak, sambungan berselang
 const WOOD_M = 4;
-function woodTex() {
-  return canvasTex('wood', 1024, (c, S) => {
-    const r = rng(7), row = S / 16, tones = ['#dcab6e', '#d39f62', '#e2b57a', '#cd975a', '#d8a668', '#e6bb83'];
+const WOOD_WARM = ['#dcab6e', '#d39f62', '#e2b57a', '#cd975a', '#d8a668', '#e6bb83'];
+const WOOD_LIGHT = ['#ecd6b2', '#e5cca3', '#f1dfc0', '#e0c59b', '#e9d2ab', '#f3e3c6'];
+function woodTex(tones = WOOD_WARM) {
+  return canvasTex('wood' + tones[0], 1024, (c, S) => {
+    const r = rng(tones === WOOD_WARM ? 7 : 11), row = S / 16;
     for (let j = 0; j < 16; j++) {
       let x = -r() * 500;
       while (x < S) {
@@ -220,6 +222,41 @@ function carpetTex(hex) {
     c.globalAlpha = 1;
   });
 }
+// ubin pantry: krem & putih 50 cm dengan nat tipis (1 tekstur = 2 × 2 m)
+function tileTex() {
+  return canvasTex('tile', 512, (c, S) => {
+    const n = 4, t = S / n;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { c.fillStyle = (i + j) % 2 ? '#f6f3ec' : '#e9e2d4'; c.fillRect(i * t, j * t, t, t); }
+    c.fillStyle = 'rgba(150,140,120,0.35)';
+    for (let k = 0; k <= n; k++) { c.fillRect(k * t - 1.5, 0, 3, S); c.fillRect(0, k * t - 1.5, S, 3); }
+  });
+}
+let glassMat = null;
+const glassMaterial = () => glassMat || (glassMat = Object.assign(new THREE.MeshStandardMaterial({ color: '#d9eef5', transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0, envMapIntensity: 1, depthWrite: false, side: THREE.DoubleSide }), { userData: { shared: true } }));
+const FRAME = '#3a4249';
+// dinding kaca berangka gelap dari (x0, z0) ke (x1, z1) — frame ke batch `b`, kaca ke batch `g`
+function glassWall(b, g, x0, z0, x1, z1, y, hgt = 2.2, gaps = []) {
+  const alongX = Math.abs(x1 - x0) >= Math.abs(z1 - z0);
+  const len = alongX ? x1 - x0 : z1 - z0, a0 = alongX ? x0 : z0;
+  const seg = (u0, u1) => {
+    if (u1 - u0 < 0.15) return;
+    const P = (u, w) => (alongX ? [a0 + u, z0, w] : [x0, a0 + u, w]);
+    const n = Math.max(1, Math.round((u1 - u0) / 1.4));
+    for (let k = 0; k <= n; k++) { // tiang
+      const u = u0 + ((u1 - u0) * k) / n, [px, pz] = P(u);
+      b.box(px - 0.035, y, pz - 0.035, px + 0.035, y + hgt, pz + 0.035, FRAME);
+    }
+    const [ax, az] = P(u0), [bx, bz] = P(u1);
+    b.box(Math.min(ax, bx) - 0.03, y + hgt - 0.06, Math.min(az, bz) - 0.03, Math.max(ax, bx) + 0.03, y + hgt, Math.max(az, bz) + 0.03, FRAME); // balok atas
+    b.box(Math.min(ax, bx) - 0.03, y, Math.min(az, bz) - 0.03, Math.max(ax, bx) + 0.03, y + 0.06, Math.max(az, bz) + 0.03, FRAME); // list bawah
+    const tx = alongX ? 0 : 0.008, tz = alongX ? 0.008 : 0;
+    g.box(Math.min(ax, bx) - tx, y + 0.06, Math.min(az, bz) - tz, Math.max(ax, bx) + tx, y + hgt - 0.06, Math.max(az, bz) + tz, '#ffffff');
+  };
+  let u = 0;
+  for (const c of gaps.map((v) => v - a0).sort((p, q) => p - q)) { seg(u, c - 0.6); u = c + 0.6; }
+  seg(u, len);
+}
+
 // bidang datar bertekstur (lantai/karpet) dari (x0, z0) ke (x1, z1) pada ketinggian y; tekstur selebar `m` meter
 function texPlane(tex, x0, z0, x1, z1, y, m) {
   const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, y, (z0 + z1) / 2);
@@ -240,6 +277,27 @@ function bush(b, x, y, z, k = 1) {
   b.geom(BUSH, '#5aa864', x, y + 0.62 * k, z, 0.34 * k, 0.36 * k, 0.34 * k);
   b.geom(BUSH, '#6dbb6f', x + 0.1 * k, y + 0.82 * k, z + 0.06 * k, 0.22 * k);
 }
+// dinding aksen di belakang ruangan lantai atas (menempel di dinding belakang gedung, z = 0)
+function accentWall(rb, f, fy, kind) {
+  const x0 = f.x + 0.3, x1 = f.x + f.w - 0.3, z = f.y + 0.012;
+  if (kind === 'wood') { // panel kayu bilah vertikal + lis emas
+    rb.box(x0, fy, z, x1, fy + 2.3, z + 0.04, '#a8723f');
+    for (let x = x0 + 0.12; x < x1 - 0.05; x += 0.24) rb.box(x, fy + 0.02, z + 0.04, x + 0.14, fy + 2.28, z + 0.07, '#c38a52');
+    rb.box(x0, fy + 2.0, z + 0.07, x1, fy + 2.06, z + 0.09, '#e7c35a');
+  } else if (kind === 'tile') { // backsplash ubin mint di atas meja dapur + rak terbuka
+    rb.box(x0, fy + 0.85, z, x1, fy + 1.7, z + 0.03, '#d3ebe3');
+    for (let x = x0; x < x1; x += 0.3) rb.box(x, fy + 0.85, z + 0.03, x + 0.015, fy + 1.7, z + 0.035, '#b9d6cc');
+    for (let y = fy + 1.0; y < fy + 1.7; y += 0.15) rb.box(x0, y, z + 0.03, x1, y + 0.012, z + 0.035, '#b9d6cc');
+    rb.box(x0 + 0.4, fy + 1.95, z, x1 - 0.4, fy + 1.99, z + 0.25, '#c99a5f');
+    for (let x = x0 + 0.6, i = 0; x < x1 - 0.6; x += 0.45, i++) rb.box(x, fy + 1.99, z + 0.05, x + 0.18, fy + 2.15 + (i % 2) * 0.06, z + 0.2, ['#e2734f', '#f2efe6', '#5f8fe0', '#47ad86'][i % 4]);
+  } else if (kind === 'sage') { // dinding hijau sage + lukisan bulat
+    rb.box(x0, fy, z, x1, fy + 2.3, z + 0.04, '#a9c2a6');
+    const cx = (x0 + x1) / 2;
+    rb.box(cx - 0.5, fy + 1.3, z + 0.04, cx + 0.5, fy + 2.0, z + 0.07, '#2e3640');
+    rb.box(cx - 0.42, fy + 1.37, z + 0.07, cx + 0.42, fy + 1.93, z + 0.08, '#f2b84b');
+  }
+}
+
 // dinding belakang lantai bawah (sisi depan mezanin, menghadap +z): poster, rak buku, pintu, dispenser, sticky notes
 function wallDecor(b, x0, x1, zw, skip) {
   const free = (a, c) => !skip.some(([s0, s1]) => c > s0 && a < s1);
@@ -450,7 +508,7 @@ S3.build = function (s) {
     staticGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.map && !o.material.userData.shared) { o.material.map.dispose(); o.material.dispose(); } });
   }
   staticGroup = new THREE.Group(); signGroup = new THREE.Group(); staticGroup.add(signGroup);
-  const b = new Batch(), rear = new Batch(), left = new Batch();
+  const b = new Batch(), rear = new Batch(), left = new Batch(), glass = new Batch();
   const W = s.map.w, H = s.map.h, E = A.E;
   const mz = VO.mezz(s), M = mz ? mz.M : 0;
   const elevOf = (r) => (mz && r.y + (r.h || 1) <= M ? UP : 0);
@@ -462,27 +520,32 @@ S3.build = function (s) {
   staticGroup.add(texPlane(woodTex(), 0, M, W, H, E.lower.max.y + 0.004, WOOD_M));
   const wallY = mz ? UP : 0;
   if (mz) {
-    b.fit(E.wingBase, 0, 0, 0, W, UP - 0.02, M);
+    rear.fit(E.wingBase, 0, 0, 0, W, UP - 0.02, M, { recolor: () => [0.86, 0.83, 0.78] }); // pakai material dinding (lebih terang)
     b.fit(E.wingFloor, 0, UP - 0.05, 0, W, UP, M);
-    // ruangan GLB punya lantai sendiri → ubin di bawahnya dilewati (hindari z-fighting)
-    const own = s.facilities.filter((f) => ['boss', 'billiard', 'pool'].includes(f.type));
-    const covered = (i, j) => own.some((f) => i >= f.x && i < f.x + f.w && j >= f.y && j < f.y + f.h);
-    for (let j = 0; j < M; j++) for (let i = 0; i < W; i++) if ((i + j) % 2 === 0 && !covered(i, j)) b.fit(E.upTile, i + 0.01, UP, j + 0.01, i + 0.99, null, j + 0.99);
-    // pagar balkon di tepi mezanin (sampai tangga)
-    for (let x = 0.1; x < mz.sx - 0.1; x += 0.8) b.add(E.post, { x, y: 0, z: M - E.post.max.z });
-    b.fit(E.rail, 0.05, E.rail.min.y, M - 0.05, mz.sx - 0.05, null, M + 0.02);
+    // lantai atas: papan kayu terang (ruangan GLB punya lantai sendiri sedikit di atasnya)
+    staticGroup.add(texPlane(woodTex(WOOD_LIGHT), 0, 0, W, M, UP + 0.004, WOOD_M));
+    // pagar balkon kaca bertiang gelap di tepi mezanin (sampai tangga)
+    const rz = M - 0.06, rh = 1.05;
+    for (let x = 0.1, k = 0; x <= mz.sx - 0.1 + 1e-6; x += (mz.sx - 0.2) / Math.max(1, Math.round((mz.sx - 0.2) / 1.6)), k++)
+      b.box(x - 0.03, UP, rz - 0.03, x + 0.03, UP + rh, rz + 0.03, FRAME);
+    b.box(0.05, UP + rh - 0.04, rz - 0.045, mz.sx - 0.05, UP + rh + 0.02, rz + 0.045, FRAME);
+    glass.box(0.1, UP + 0.06, rz - 0.008, mz.sx - 0.1, UP + rh - 0.06, rz + 0.008, '#ffffff');
     // tangga: 2 tile (sx..sx+2), turun dari tepi mezanin (M) ke baris M+3
     b.fit(E.stairs, mz.sx - 0.03, 0, M, mz.sx + 2.03, null, M + 3);
     // sisi depan mezanin = dinding belakang lantai bawah → dihias
     wallDecor(b, 0.3, W - 0.3, M, [[mz.sx - 0.4, mz.sx + 2.4]]);
     bush(b, 0.6, 0, M + 0.6); bush(b, W - 0.6, 0, M + 0.6);
   }
-  rear.fit(E.rearWall, -0.1, wallY, -0.12, W + 0.1, wallY + (E.rearWall.max.y - E.rearWall.min.y), 0);
+  const WALL = (() => { const c = new THREE.Color('#f2efe8'); return [c.r, c.g, c.b]; })(), white = { recolor: () => WALL };
+  rear.fit(E.rearWall, -0.1, wallY, -0.12, W + 0.1, wallY + (E.rearWall.max.y - E.rearWall.min.y), 0, white);
   const nWin = Math.max(1, Math.round(W / 5.6));
-  for (let k = 0; k < nWin; k++) rear.add(E.rearWin, { x: (W * (k + 0.5)) / nWin, y: wallY - UP, z: 12 });
+  // jendela: kaca biru langit berbingkai putih (bukan abu-abu)
+  const lin = (hex) => { const c = new THREE.Color(hex); return [c.r, c.g, c.b]; }, SKY = lin('#bfe1f2'), FRM = lin('#e8ecef');
+  const winCol = { recolor: (p) => (/frame/.test(p.name) ? FRM : SKY) };
+  for (let k = 0; k < nWin; k++) rear.add(E.rearWin, { x: (W * (k + 0.5)) / nWin, y: wallY - UP, z: 12, ...winCol });
   // dinding kiri & kanan simetris (dinding kanan = cermin dinding kiri, ikut jendela samping)
-  left.fit(E.leftWall, -0.11, 0, M, 0.01, null, H);
-  b.fit(E.leftWall, W - 0.01, 0, M, W + 0.11, null, H);
+  left.fit(E.leftWall, -0.11, 0, M, 0.01, null, H, white);
+  b.fit(E.leftWall, W - 0.01, 0, M, W + 0.11, null, H, white);
   const lowD = H - M - 1, nSide = Math.max(1, Math.floor(lowD / 4.5));
   for (let k = 0; k < nSide; k++) {
     const z = M + 1 + (lowD * (k + 0.5)) / nSide;
@@ -506,7 +569,9 @@ S3.build = function (s) {
     // dek kolam dinaikkan sedikit agar air (di bawah permukaan dek) tidak tertutup lantai gedung
     else if (f.type === 'pool') b.add(A.pool, { x: cx, y: fy + 0.26, z: f.y + (f.h - 1) / 2 + 0.5, sx: f.w / 12, sz: (f.h - 1) / 10 });
     else if (f.type === 'meeting') {
-      zone(b, f, fy, '#dce2e3', VO.doorTiles(f, f));
+      // karpet abu-biru di bawah meja + dinding aksen panel kayu berlis emas (TV menempel di depannya)
+      staticGroup.add(texPlane(carpetTex('#8ea2c4'), f.x + 0.3, f.y + 0.3, f.x + f.w - 0.3, f.y + f.h - 0.3, fy + 0.012, CARPET_M));
+      accentWall(rear, f, fy, 'wood');
       const t = VO.meetingTable(f);
       b.add(A.mTable, { x: t.x + t.w / 2, y: fy, z: t.y + t.h / 2, sx: (t.w + 0.5) / 4.8, sz: (t.h + 0.45) / 1.6 });
       for (let x = t.x; x < t.x + t.w; x++) {
@@ -520,11 +585,24 @@ S3.build = function (s) {
       rear.add(A.mDisplay, { x: cx, y: fy, z: f.y + (f.y === 0 ? 0.04 : 0.15) });
       b.fit(A.partition, f.x + 0.0, fy, f.y + 0.4, f.x + 0.1, null, f.y + f.h - 0.6);
     } else if (f.type === 'pantry') {
-      zone(b, f, fy, '#e5e9e8', VO.doorTiles(f, f));
+      staticGroup.add(texPlane(tileTex(), f.x + 0.1, f.y + 0.1, f.x + f.w - 0.1, f.y + f.h - 0.1, fy + 0.012, CARPET_M));
+      accentWall(rear, f, fy, 'tile');
       b.add(A.pantry, { x: cx, y: fy, z: f.y + 1.5 });
+      bush(b, f.x + f.w - 0.6, fy, f.y + f.h - 0.6, 0.85);
     } else if (f.type === 'lounge') {
-      zone(b, f, fy, '#e5e9e8', VO.doorTiles(f, f));
+      staticGroup.add(texPlane(carpetTex('#d9a37a'), f.x + 0.4, f.y + 0.4, f.x + f.w - 0.4, f.y + f.h - 0.4, fy + 0.012, CARPET_M));
+      accentWall(rear, f, fy, 'sage');
       b.add(A.lounge, { x: cx, y: fy, z: cz - 0.2 });
+      bush(b, f.x + 0.6, fy, f.y + 0.7);
+    }
+    // sekat kaca berangka gelap di sisi kiri & kanan tiap ruangan lantai atas; ruang kerja (Boss, rapat) juga di depan
+    if (fy > 0 && f.type !== 'pool') {
+      glassWall(b, glass, f.x + 0.05, f.y + 0.1, f.x + 0.05, f.y + f.h - 0.05, fy);
+      glassWall(b, glass, f.x + f.w - 0.05, f.y + 0.1, f.x + f.w - 0.05, f.y + f.h - 0.05, fy);
+      if (f.type === 'boss' || f.type === 'meeting') {
+        const doors = VO.doorTiles(f, f).filter((d) => d.y === f.y + f.h - 1).map((d) => d.x + 0.5);
+        glassWall(b, glass, f.x + 0.05, f.y + f.h - 0.05, f.x + f.w - 0.05, f.y + f.h - 0.05, fy, 2.2, doors);
+      }
     }
   }
 
@@ -595,7 +673,8 @@ S3.build = function (s) {
   }
 
   const main = b.mesh(S3.mat);
-  rearMesh = rear.mesh(S3.mat); leftMesh = left.mesh(S3.mat);
+  if (glass.p.length) { const gm = glass.mesh(glassMaterial()); gm.renderOrder = 2; gm.userData.noAO = true; staticGroup.add(gm); }
+  rearMesh = rear.mesh(S3.wallMat); leftMesh = left.mesh(S3.wallMat);
   for (const m of [main, rearMesh, leftMesh]) { m.castShadow = true; m.receiveShadow = true; }
   staticGroup.add(main, rearMesh, leftMesh);
   scene.add(staticGroup);
@@ -672,7 +751,7 @@ function applyQuality() {
   const q = S3.quality;
   renderer.shadowMap.enabled = q >= 1;
   sun.castShadow = q >= 1;
-  S3.mat.needsUpdate = true; charMat.needsUpdate = true;
+  S3.mat.needsUpdate = true; S3.wallMat.needsUpdate = true; charMat.needsUpdate = true;
   scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
   if (q >= 2 && !composer) {
     composer = new EffectComposer(renderer);
@@ -681,6 +760,9 @@ function applyQuality() {
     aoPass.updateGtaoMaterial({ radius: 0.55 * U, distanceExponent: 1.4, thickness: 1.2 * U, scale: 1.1, samples: 16, distanceFallOff: 1 });
     aoPass.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
     aoPass.blendIntensity = 0.85;
+    // kaca (transparan) tidak ikut dihitung ambient occlusion
+    const ov = aoPass.overrideVisibility.bind(aoPass);
+    aoPass.overrideVisibility = function () { ov(); scene.traverse((o) => { if (o.userData.noAO) o.visible = false; }); };
     composer.addPass(aoPass);
     composer.addPass(new OutputPass());
   }
@@ -723,9 +805,15 @@ S3.init = async function (canvas2d) {
     sun.shadow.mapSize.set(4096, 4096);
     sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6; sun.shadow.radius = 3;
     scene.add(sun, sun.target);
+    // cahaya pengisi lembut dari depan (tanpa bayangan): dinding yang menghadap kamera tidak tampak kelabu
+    const fill = new THREE.DirectionalLight(0xfff8ee, 0.9);
+    fill.position.set(0.25, 0.45, 1);
+    scene.add(fill);
     // proyeksi diisi manual tiap frame (frustum asimetris) — jangan panggil updateProjectionMatrix()
     camera = new THREE.PerspectiveCamera(40, 1, 1, 1000);
     S3.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0, envMapIntensity: 0.1 });
+    // dinding menghadap kamera tak terkena matahari (datang dari belakang) → sedikit cahaya sendiri agar tetap putih
+    S3.wallMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, envMapIntensity: 0.1, emissive: new THREE.Color().setRGB(0.16, 0.155, 0.145) });
     charMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, envMapIntensity: 0.25 });
     applyQuality();
     await load();
