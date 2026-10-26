@@ -449,7 +449,7 @@
       }
       if (k.last) quote = `<blockquote><span>Hasil terakhir</span>“${esc(clip(k.last.st.output, 140))}”</blockquote>`;
       else if (a.memory && a.memory.length) quote = `<blockquote><span>Ingatan terbaru</span>“${esc(clip(a.memory[0].text, 140))}”</blockquote>`;
-      else if (!cur) quote = `<blockquote class="hint"><span>Belum ada hasil kerja</span>Beri tugas pertama, hasilnya akan tampil di sini.</blockquote>`;
+      else if (!cur) quote = `<blockquote class="ac-empty"><span>Belum ada hasil kerja</span>Beri tugas pertama, hasilnya akan tampil di sini.</blockquote>`;
     }
     const docsN = boss ? s.docs.length : s.docs.filter((d) => d.authorId === a.id).length;
     return `<div class="ac-head">
@@ -518,7 +518,7 @@
       if (i === 'edit') ({ agent: ui.editEntity, division: ui.editDivision, dept: ui.editDept, facility: ui.editFacility })[sel.kind](sel.id);
       if (i === 'del') ui.remove(sel.kind, sel.id);
       if (i === 'lead') ui.makeLead(sel.id);
-      if (i === 'chat') VO.chat.open(sel.id);
+      if (i === 'chat') { const id = sel.id; VO.app.select(null); VO.chat.open(id); return; } // panel chat menggantikan kartu
       if (i === 'forget') { const a = VO.findEntity(S(), sel.id); a.memory = []; VO.app.changed(); ui.toast('Ingatan ' + a.name + ' dihapus', 'eraser'); }
       if (i === 'addAgent') ui.addAgent(sel.id);
       if (i === 'integTest') {

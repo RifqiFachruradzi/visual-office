@@ -640,7 +640,7 @@ body.ruang { color-scheme: dark; }
   .agentcard .state.ok i, .agentcard .bar.busy i { animation: none; }
   .ruang .insp.agentcard.anchored { transition: none; }
 }
-.agentcard blockquote.hint { color: var(--muted); }
+.agentcard blockquote.ac-empty { color: var(--muted); }
 @media (max-width: 900px) {
   .ruang .insp.agentcard { padding: 12px; max-height: calc(100% - 70px); }
   .agentcard .tag, .agentcard blockquote, .agentcard .ac-more { display: none; }
