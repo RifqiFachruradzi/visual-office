@@ -64,13 +64,13 @@
   const alpha = (hex, a) => { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; };
 
   // Kamera 3D bebas (ortografis): yaw = putar mengelilingi gedung, pitch = sudut pandang dari atas.
-  // 3D default = diagonal seperti office_ai_expanded_v2.glb (yaw 30°, pitch 35°); 2D = dari atas.
+  // 3D default = menghadap depan (yaw 0°, pitch 32°): dinding belakang sejajar layar; 2D = dari atas.
   const U = 34, ZM = 2.4 * U; // px per tile (1 tile = 1 m), tinggi lantai 2 (2,4 m)
-  const VIEW = (R.view = { yaw: 30, pitch: 35 });
+  const VIEW = (R.view = { yaw: 0, pitch: 32 });
   let FLAT = false, OBL = true, MZ = null, ELEV_OFF = false, PROBE = null;
   let CYA = 1, SYA = 0, SP = 0.57, CP = 0.82;
-  // sudut kamera 3D tetap (diagonal); pengguna hanya bisa zoom & geser
-  R.viewOf = (st) => (st && st.view === '2d' ? { yaw: 0, pitch: 88 } : { yaw: 30, pitch: 35 });
+  // sudut kamera 3D tetap (menghadap depan); pengguna hanya bisa zoom & geser
+  R.viewOf = (st) => (st && st.view === '2d' ? { yaw: 0, pitch: 88 } : { yaw: 0, pitch: 32 });
   function updateGeo(s) {
     const v = R.viewOf(s.settings);
     VIEW.yaw = v.yaw; VIEW.pitch = Math.max(18, Math.min(89, v.pitch));
@@ -2040,19 +2040,47 @@
   }
 
   // Gaya Penthouse: label pil gelap di bawah kaki, balon putih di atas kepala, lencana "!" merah
-  function drawOverlayLuxe(ctx, ent, rt, now, sc) {
+  // ukuran label nama (pil) — dipakai untuk menggambar & menata agar tidak saling tumpuk
+  function luxeLabel(ctx, ent) {
     const sel = R.selected === ent.id, hov = R.hover === ent.id;
+    if (!(R.cam.zoom >= 0.45 || sel || hov)) return null;
+    const name = ent.name;
+    const role = ent.id === 'boss' ? 'Boss' : (ent.role || '').split(' ').slice(0, 2).join(' ');
+    const showRole = R.cam.zoom >= 0.9 || sel || hov;
+    ctx.font = 'bold 9.5px Inter, system-ui, sans-serif';
+    const w1 = ctx.measureText(name).width;
+    ctx.font = '8.5px Inter, system-ui, sans-serif';
+    const w2 = showRole && role ? ctx.measureText(role).width + 5 : 0;
+    return { name, role, w1, w2, pw: w1 + w2 + 22, ph: 15 };
+  }
+  // Label yang bertabrakan digeser ke baris bawah/atas (meja berjajar sejajar di tampilan depan)
+  let labelFrame = 0;
+  function layoutLabels(ctx, people) {
+    labelFrame++;
+    if (!(luxe() || studio())) return;
+    const placed = [];
+    const hit = (r) => placed.some((q) => r.x < q.x + q.w + 3 && q.x < r.x + r.w + 3 && r.y < q.y + q.h + 2 && q.y < r.y + r.h + 2);
+    const items = people.filter(([, rt]) => rt._screen).map(([e, rt]) => ({ e, rt, L: luxeLabel(ctx, e) })).filter((i) => i.L);
+    // yang dipilih ditata dulu agar tetap di tempatnya
+    items.sort((a, b) => (R.selected === b.e.id) - (R.selected === a.e.id) || a.rt._screen.x - b.rt._screen.x);
+    for (const { rt, L } of items) {
+      const sc = rt._screen;
+      let dy = 0;
+      for (const k of [0, 1, 2, -1, 3]) {
+        const r = { x: sc.x - L.pw / 2, y: sc.y + 7 + k * (L.ph + 3), w: L.pw, h: L.ph };
+        if (!hit(r)) { dy = k * (L.ph + 3); placed.push(r); break; }
+      }
+      rt._labelDy = dy; rt._labelF = labelFrame;
+    }
+  }
+
+  function drawOverlayLuxe(ctx, ent, rt, now, sc) {
     const busy = rt.working || ['briefing', 'reporting', 'meeting'].includes(rt.status);
-    if (R.cam.zoom >= 0.45 || sel || hov) {
-      const name = ent.name;
-      const role = ent.id === 'boss' ? 'Boss' : (ent.role || '').split(' ').slice(0, 2).join(' ');
-      const showRole = R.cam.zoom >= 0.9 || sel || hov;
-      ctx.font = 'bold 9.5px Inter, system-ui, sans-serif';
-      const w1 = ctx.measureText(name).width;
-      ctx.font = '8.5px Inter, system-ui, sans-serif';
-      const w2 = showRole && role ? ctx.measureText(role).width + 5 : 0;
-      const pw = w1 + w2 + 22, ph = 15;
-      const px = sc.x - pw / 2, py = sc.y + 7;
+    const sel = R.selected === ent.id, hov = R.hover === ent.id;
+    const L = luxeLabel(ctx, ent);
+    if (L) {
+      const { name, role, w1, w2, pw, ph } = L;
+      const px = sc.x - pw / 2, py = sc.y + 7 + (rt._labelF === labelFrame ? rt._labelDy : 0);
       ctx.fillStyle = sel ? 'rgba(48,40,22,0.95)' : 'rgba(16,18,24,0.86)'; rr(ctx, px, py, pw, ph, 7.5); ctx.fill();
       if (sel) { ctx.strokeStyle = LX.gold; ctx.lineWidth = 1.2; rr(ctx, px, py, pw, ph, 7.5); ctx.stroke(); ctx.lineWidth = 1; }
       ctx.fillStyle = busy ? '#ffb347' : rt.status === 'walking' ? '#9aa3b8' : '#4cd38a';
@@ -2310,6 +2338,7 @@
     }
     S3().render({ geo, CYA, SYA, SP, CP, cam: R.cam, w: canvas.clientWidth, h: canvas.clientHeight, dpr }, list);
     if (ui.edit) drawEditOverlay(ctx, s, ui);
+    layoutLabels(ctx, people);
     for (const [e, rt] of people) drawPersonOverlay(ctx, e, rt, now);
   }
 
@@ -2375,6 +2404,7 @@
 
     drawLabels(ctx, s);
     if (ui.edit) drawEditOverlay(ctx, s, ui);
+    layoutLabels(ctx, people);
     for (const [e, rt] of people) drawPersonOverlay(ctx, e, rt, now);
   };
 
@@ -2415,18 +2445,20 @@
   };
 
   // Zoom kamera ke satu ruangan / zona (tab ruangan)
-  R.focusRect = function (canvas, s, r) {
+  // dry = true → hanya hitung posisi kamera tujuan (untuk animasi), tanpa memindahkan kamera
+  R.focusRect = function (canvas, s, r, dry) {
     updateGeo(s);
     const pts = [iso(r.x, r.y, 70), iso(r.x + r.w, r.y, 70), iso(r.x + r.w, r.y + r.h), iso(r.x, r.y + r.h)];
     const x0 = Math.min(...pts.map((p) => p.x)), x1 = Math.max(...pts.map((p) => p.x));
     const y0 = Math.min(...pts.map((p) => p.y)), y1 = Math.max(...pts.map((p) => p.y));
-    R.cam.zoom = VO.clamp(Math.min(canvas.clientWidth / (x1 - x0), canvas.clientHeight / (y1 - y0)) * 0.85, 0.5, 2.4);
-    R.cam.x = (x0 + x1) / 2 - canvas.clientWidth / R.cam.zoom / 2;
-    R.cam.y = (y0 + y1) / 2 - canvas.clientHeight / R.cam.zoom / 2;
+    const zoom = VO.clamp(Math.min(canvas.clientWidth / (x1 - x0), canvas.clientHeight / (y1 - y0)) * 0.85, 0.5, 2.4);
+    const t = { zoom, x: (x0 + x1) / 2 - canvas.clientWidth / zoom / 2, y: (y0 + y1) / 2 - canvas.clientHeight / zoom / 2 };
+    if (!dry) Object.assign(R.cam, t);
+    return t;
   };
 
   // Tampilkan area yang berisi ruangan/zona/furnitur (bukan seluruh lantai kosong)
-  R.fit = function (canvas, s) {
+  R.fit = function (canvas, s, dry) {
     updateGeo(s);
     const rects = [...s.facilities, ...s.departments.map((d) => d.room), ...s.divisions.map((d) => d.zone), ...s.furniture.map((f) => ({ x: f.x, y: f.y, w: 1, h: 1 }))];
     if (!rects.length || (s.settings && s.settings.theme === 'studio')) rects.push({ x: 0, y: 0, w: s.map.w, h: s.map.h }); // studio: seluruh gedung terlihat
@@ -2437,9 +2469,10 @@
       }
     }
     const W = x1 - x0, H = y1 - y0;
-    R.cam.zoom = VO.clamp(Math.min(canvas.clientWidth / W, canvas.clientHeight / H) * 0.97, 0.2, 2.2);
-    R.cam.x = x0 + W / 2 - canvas.clientWidth / R.cam.zoom / 2;
-    R.cam.y = y0 + H / 2 - canvas.clientHeight / R.cam.zoom / 2;
+    const zoom = VO.clamp(Math.min(canvas.clientWidth / W, canvas.clientHeight / H) * 0.97, 0.2, 2.2);
+    const t = { zoom, x: x0 + W / 2 - canvas.clientWidth / zoom / 2, y: y0 + H / 2 - canvas.clientHeight / zoom / 2 };
+    if (!dry) Object.assign(R.cam, t);
+    return t;
   };
 
   /* ------------------------------------------------------------ potret (inspector) */

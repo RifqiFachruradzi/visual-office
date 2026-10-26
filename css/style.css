@@ -650,3 +650,27 @@ body.ruang { color-scheme: dark; }
   .agentcard .stat b { font-size: 17px; }
   .agentcard .ac-actions { margin-top: 10px; }
 }
+
+/* ---- tur ruangan: ‹ Seluruh kantor › AUTO (kamera meluncur ke tiap ruangan) */
+.ruang .roomtabs.tour { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 99px; max-width: none; overflow: visible; }
+.roomtabs.tour .tv { width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 0; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; display: grid; place-items: center; }
+.roomtabs.tour .tv:hover { background: var(--hover-bg); color: var(--text); }
+.roomtabs.tour .tname { position: relative; min-width: 150px; max-width: 220px; height: 34px; padding: 0 12px; display: grid; place-items: center; font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 600; font-size: 13.5px; color: var(--text); cursor: pointer; border-radius: 10px; }
+.roomtabs.tour .tname:hover { background: var(--hover-bg); }
+.roomtabs.tour .tname span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.roomtabs.tour select { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.roomtabs.tour .tname:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.roomtabs.tour .tauto { height: 28px; padding: 0 11px; margin-left: 4px; border-radius: 99px; font-size: 11px; font-weight: 700; letter-spacing: .06em; background: transparent; border: 1px solid var(--line-2); color: var(--muted); }
+.roomtabs.tour .tauto:hover { color: var(--text); border-color: var(--hover); }
+.roomtabs.tour .tauto.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tourcap { position: absolute; left: 50%; bottom: 64px; z-index: 2; transform: translate(-50%, 10px); opacity: 0; pointer-events: none; text-align: center; transition: opacity .45s ease, transform .45s ease; }
+.tourcap.show { opacity: 1; transform: translate(-50%, 0); }
+.tourcap b { display: block; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 30px; font-weight: 700; color: #fff; letter-spacing: -.01em; text-shadow: 0 2px 18px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.5); }
+.tourcap span { display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; color: var(--on-accent); background: var(--accent); }
+body.ruang:not([data-view='office']) .tourcap { display: none; }
+@media (max-width: 900px) {
+  .ruang .roomtabs.tour { display: flex; left: 50%; right: auto; top: auto; bottom: 12px; transform: translateX(-50%); }
+  .tourcap { bottom: 64px; }
+  .tourcap b { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) { .tourcap { transition: none; } }

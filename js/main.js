@@ -200,27 +200,76 @@
 
   // Tab ruangan di atas kanvas (Lobby, Pantry, Kolam, divisi…) → kamera terbang ke ruangan itu
   let tabsSig = '';
-  function renderRoomTabs() {
+  /* ------------------------------------------------------------ tur ruangan: ‹ Seluruh kantor › + AUTO */
+  // Kamera meluncur (zoom + geser) ke tiap departemen & fasilitas; AUTO berkeliling sendiri.
+  const tour = (app.tour = { i: 0, auto: false, timer: null, stops: [] });
+  function tourStops() {
     const s = app.state;
-    const items = [
-      ...s.facilities.map((f) => ({ kind: 'facility', id: f.id, name: f.name })),
-      ...s.divisions.map((d) => ({ kind: 'division', id: d.id, name: d.name })),
-    ];
-    const sig = items.map((i) => i.id + i.name).join('|');
+    const out = [{ kind: 'all', name: 'Seluruh kantor', sub: `${s.divisions.length} divisi · ${s.agents.length} karyawan` }];
+    for (const div of s.divisions)
+      for (const d of s.departments.filter((x) => x.divisionId === div.id))
+        out.push({ kind: 'dept', id: d.id, name: d.name, sub: `Divisi ${div.name} · ${VO.deptAgents(s, d.id).length} agen`, rect: d.room });
+    for (const f of [...s.facilities].sort((a, b) => (a.type === 'boss' ? -1 : 0) - (b.type === 'boss' ? -1 : 0)))
+      out.push({ kind: 'facility', id: f.id, name: f.name, sub: VO.FACILITY_TYPES[f.type]?.label || 'Fasilitas', rect: f });
+    return out;
+  }
+  function renderRoomTabs() {
+    const stops = tourStops();
+    const sig = stops.map((x) => x.kind + x.id + x.name).join('|');
     if (sig === tabsSig) return;
     tabsSig = sig;
-    $('roomTabs').innerHTML = `<button class="rt" data-all="1" title="Lihat seluruh kantor">${VO.icon('maximize')}</button>` +
-      items.map((i) => `<button class="rt" data-kind="${i.kind}" data-id="${i.id}">${VO.esc(i.name)}</button>`).join('');
+    tour.stops = stops;
+    if (tour.i >= stops.length) tour.i = 0;
+    $('roomTabs').innerHTML = `<button class="tv" data-t="prev" title="Ruangan sebelumnya (←)" aria-label="Ruangan sebelumnya">‹</button>
+      <label class="tname"><span id="tourName"></span><select id="tourSel" aria-label="Lompat ke ruangan">${stops.map((x, i) => `<option value="${i}">${VO.esc(x.name)}</option>`).join('')}</select></label>
+      <button class="tv" data-t="next" title="Ruangan berikutnya (→)" aria-label="Ruangan berikutnya">›</button>
+      <button class="tauto" data-t="auto" title="Keliling otomatis" aria-pressed="false">AUTO</button>`;
+    syncTour();
   }
+  function syncTour() {
+    const st = tour.stops[tour.i];
+    if ($('tourName')) $('tourName').textContent = st ? st.name : 'Seluruh kantor';
+    if ($('tourSel')) $('tourSel').value = String(tour.i);
+    const b = document.querySelector('#roomTabs .tauto');
+    if (b) { b.classList.toggle('on', tour.auto); b.setAttribute('aria-pressed', String(tour.auto)); }
+  }
+  let capTimer = null;
+  function tourCaption(st) {
+    const el = $('tourCap');
+    if (!el || !st) return;
+    el.innerHTML = `<b>${VO.esc(st.name)}</b><span>${VO.esc(st.sub || '')}</span>`;
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+    clearTimeout(capTimer); capTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+  app.tourGo = function (i, opts = {}) {
+    const n = tour.stops.length;
+    if (!n) return;
+    tour.i = ((i % n) + n) % n;
+    const st = tour.stops[tour.i], c = $('office'), s = app.state;
+    if (app.sel && app.sel.kind === 'agent') app.select(null);
+    const to = st.kind === 'all' ? R.fit(c, s, true) : R.focusRect(c, s, st.rect, true);
+    app.flyCam(to, opts.dur || 1200);
+    tourCaption(st);
+    syncTour();
+  };
+  app.tourAuto = function (on) {
+    tour.auto = on;
+    clearInterval(tour.timer);
+    if (on) { app.tourGo(tour.i + 1); tour.timer = setInterval(() => app.tourGo(tour.i + 1), 5200); }
+    syncTour();
+  };
   function bindRoomTabs() {
     $('roomTabs').addEventListener('click', (e) => {
-      const b = e.target.closest('button.rt');
+      const b = e.target.closest('button[data-t]');
       if (!b) return;
-      const s = app.state;
-      if (b.dataset.all) return R.fit($('office'), s);
-      const r = b.dataset.kind === 'facility' ? s.facilities.find((f) => f.id === b.dataset.id) : s.divisions.find((d) => d.id === b.dataset.id)?.zone;
-      if (r) R.focusRect($('office'), s, r);
-      document.querySelectorAll('#roomTabs .rt').forEach((x) => x.classList.toggle('on', x === b));
+      if (b.dataset.t === 'auto') return app.tourAuto(!tour.auto);
+      if (tour.auto) app.tourAuto(false);
+      app.tourGo(tour.i + (b.dataset.t === 'next' ? 1 : -1));
+    });
+    $('roomTabs').addEventListener('change', (e) => {
+      if (e.target.id !== 'tourSel') return;
+      if (tour.auto) app.tourAuto(false);
+      app.tourGo(Number(e.target.value));
     });
   }
 
@@ -263,26 +312,41 @@
     VO.ui.toast(v === '2d' ? 'Tampilan 2D (denah dari atas)' : 'Tampilan 3D (isometrik)', v === '2d' ? 'layout' : 'layers');
   };
 
-  // Kamera terbang halus ke satu titik dunia (fx = posisi horizontal titik di layar, 0..1)
+  // Kamera meluncur halus ke posisi tujuan {x, y, zoom}: pusat layar & zoom diinterpolasi (ease in-out),
+  // dengan sedikit motion blur saat perpindahannya jauh — seperti kamera drone menyorot ruangan.
   let camAnim = null;
-  app.stopCam = function () { if (camAnim) cancelAnimationFrame(camAnim); camAnim = null; };
-  app.flyTo = function (p, zoom, fx = 0.5) {
+  const stageCanvases = () => document.querySelectorAll('.stage canvas');
+  const setBlur = (px) => stageCanvases().forEach((cv) => { cv.style.filter = px > 0.15 ? `blur(${px.toFixed(2)}px)` : ''; });
+  app.stopCam = function () { if (camAnim) cancelAnimationFrame(camAnim); camAnim = null; setBlur(0); };
+  app.flyCam = function (to, dur = 700) {
     const c = $('office'), W = c.clientWidth, H = c.clientHeight;
-    zoom = VO.clamp(zoom, 0.2, 3);
-    const to = R.camFor(c, p.x, p.y, zoom, fx);
+    const zoom = VO.clamp(to.zoom, 0.2, 3);
     const z0 = R.cam.zoom, c0 = { x: R.cam.x + W / (2 * z0), y: R.cam.y + H / (2 * z0) };
     const c1 = { x: to.x + W / (2 * zoom), y: to.y + H / (2 * zoom) };
+    // seberapa jauh perpindahannya (dalam "layar"), untuk kekuatan blur
+    const travel = Math.abs(Math.log(zoom / z0)) + Math.hypot(c1.x - c0.x, c1.y - c0.y) * Math.max(z0, zoom) / Math.max(W, H);
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const blurMax = reduce ? 0 : Math.min(2.4, travel * 1.1);
+    if (reduce) dur = Math.min(dur, 250);
     const t0 = performance.now();
     app.stopCam();
     const step = (now) => {
-      const k = Math.min(1, (now - t0) / 700), e = 1 - Math.pow(1 - k, 3);
-      const z = z0 + (zoom - z0) * e;
+      const k = Math.min(1, (now - t0) / dur);
+      const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      // zoom diinterpolasi secara logaritmik agar terasa konstan
+      const z = z0 * Math.pow(zoom / z0, e);
       R.cam.zoom = z;
       R.cam.x = c0.x + (c1.x - c0.x) * e - W / (2 * z);
       R.cam.y = c0.y + (c1.y - c0.y) * e - H / (2 * z);
-      camAnim = k < 1 ? requestAnimationFrame(step) : null;
+      setBlur(blurMax * Math.sin(Math.PI * k));
+      if (k < 1) camAnim = requestAnimationFrame(step);
+      else { camAnim = null; setBlur(0); }
     };
     camAnim = requestAnimationFrame(step);
+  };
+  // Kamera terbang ke satu titik dunia (fx = posisi horizontal titik di layar, 0..1)
+  app.flyTo = function (p, zoom, fx = 0.5) {
+    app.flyCam(R.camFor($('office'), p.x, p.y, VO.clamp(zoom, 0.2, 3), fx), 750);
   };
 
   // Tombol + / − : zoom di titik tengah layar, dengan animasi halus
@@ -409,7 +473,12 @@
       if (e.key === '-' || e.key === '_') app.zoomBy(1 / 1.25);
       if (e.key === '2') app.setView('2d');
       if (e.key === '3') app.setView('3d');
-      if (e.key === 'Escape') { app.select(null); VO.chat.close(); }
+      if (e.key === 'Escape') { app.select(null); VO.chat.close(); if (tour.auto) app.tourAuto(false); }
+      if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && document.body.dataset.view === 'office' && !app.ui.edit) {
+        if (tour.auto) app.tourAuto(false);
+        app.tourGo(tour.i + (e.key === 'ArrowRight' ? 1 : -1));
+      }
+      if ((e.key === 'a' || e.key === 'A') && !app.ui.edit) app.tourAuto(!tour.auto);
       if (e.key === 'Delete' && app.sel && app.sel.id !== 'boss') VO.ui.remove(app.sel.kind, app.sel.id);
     });
   }
@@ -565,7 +634,7 @@
 
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
-      app.stopCam();
+      app.stopCam(); if (tour.auto) app.tourAuto(false);
       const { sx, sy } = pos(e);
       const before = R.screenToIso(sx, sy);
       R.cam.zoom = VO.clamp(R.cam.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), 0.2, 3);
@@ -575,7 +644,7 @@
 
     canvas.addEventListener('pointerdown', (e) => {
       canvas.setPointerCapture(e.pointerId);
-      app.stopCam();
+      app.stopCam(); if (tour.auto) app.tourAuto(false);
       const { sx, sy } = pos(e);
       const w = R.screenToWorld(sx, sy);
       const s = app.state;
