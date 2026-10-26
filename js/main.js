@@ -39,6 +39,7 @@
       if (rect) p = { x: (rect.x + rect.w / 2) * T, y: (rect.y + rect.h / 2) * T };
       // karyawan: kamera terbang mendekat, karakter sedikit ke kiri agar kartu dashboard muat di kanan
       if (p && sel.kind === 'agent') app.flyTo(p, Math.max(R.cam.zoom, 1.35), window.innerWidth > 900 ? 0.38 : 0.5);
+      else if (rect && app.tourTo(sel.kind, sel.id)) { /* kamera meluncur ke ruangan, navigator ikut */ }
       else if (p) R.focus($('office'), p.x, p.y);
     }
     app._dirty = true;
@@ -206,9 +207,11 @@
   function tourStops() {
     const s = app.state;
     const out = [{ kind: 'all', name: 'Seluruh kantor', sub: `${s.divisions.length} divisi · ${s.agents.length} karyawan` }];
-    for (const div of s.divisions)
-      for (const d of s.departments.filter((x) => x.divisionId === div.id))
-        out.push({ kind: 'dept', id: d.id, name: d.name, sub: `Divisi ${div.name} · ${VO.deptAgents(s, d.id).length} agen`, rect: d.room });
+    for (const div of s.divisions) {
+      const depts = s.departments.filter((x) => x.divisionId === div.id);
+      out.push({ kind: 'division', id: div.id, name: div.name, sub: `Divisi · ${depts.length} departemen · ${s.agents.filter((a) => a.divisionId === div.id).length} karyawan`, rect: div.zone });
+      for (const d of depts) out.push({ kind: 'dept', id: d.id, name: d.name, sub: `Divisi ${div.name} · ${VO.deptAgents(s, d.id).length} agen`, rect: d.room });
+    }
     for (const f of [...s.facilities].sort((a, b) => (a.type === 'boss' ? -1 : 0) - (b.type === 'boss' ? -1 : 0)))
       out.push({ kind: 'facility', id: f.id, name: f.name, sub: VO.FACILITY_TYPES[f.type]?.label || 'Fasilitas', rect: f });
     return out;
@@ -246,7 +249,7 @@
     if (!n) return;
     tour.i = ((i % n) + n) % n;
     const st = tour.stops[tour.i], c = $('office'), s = app.state;
-    if (app.sel && app.sel.kind === 'agent') app.select(null);
+    if (app.sel && !opts.keep) app.select(null); // kartu lama (agen/ruangan lain) ditutup saat pindah ruangan
     let to = st.kind === 'all' ? R.fit(c, s, true) : R.focusRect(c, s, st.rect, true);
     const cap = 1.45; // ruangan kecil jangan di-zoom terlalu dekat (sekitar ruangan tetap terlihat)
     if (st.kind !== 'all' && to.zoom > cap) {
@@ -256,6 +259,16 @@
     app.flyCam(to, opts.dur || 1200);
     tourCaption(st);
     syncTour();
+  };
+  // Lompat ke ruangan tertentu (klik ruangan di kantor / di struktur): navigator ikut pindah ke situ,
+  // jadi ‹ › berikutnya lanjut ke ruangan sebelahnya
+  app.tourTo = function (kind, id) {
+    renderRoomTabs();
+    const i = tour.stops.findIndex((x) => x.kind === kind && x.id === id);
+    if (i < 0) return false;
+    if (tour.auto) app.tourAuto(false);
+    app.tourGo(i, { keep: true });
+    return true;
   };
   app.tourAuto = function (on) {
     tour.auto = on;
@@ -725,7 +738,8 @@
     const p = R.hitPerson(s, w.x, w.y);
     if (p) return app.select({ kind: 'agent', id: p.id }, true); // klik karyawan = kamera mendekat + kartu dashboard
     const hit = hitTest(s, w.x, w.y);
-    if (hit && ['dept', 'facility', 'division'].includes(hit.kind)) return app.select({ kind: hit.kind, id: hit.obj.id });
+    // klik ruangan / zona divisi = kamera zoom ke sana (navigator tur ikut pindah)
+    if (hit && ['dept', 'facility', 'division'].includes(hit.kind)) return app.select({ kind: hit.kind, id: hit.obj.id }, true);
     app.select(null);
   }
 
