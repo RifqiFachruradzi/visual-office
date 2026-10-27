@@ -220,23 +220,6 @@ button.link .ic { width: 12px; height: 12px; }
 .integ { color: #81d4fa; }
 .integ small { color: var(--muted); }
 
-/* ---------------------------------------------------------------- tema terang (Modern) */
-body.light {
-  --bg: #eef1f6; --panel: #ffffff; --panel-2: #f5f7fb; --line: #e2e6ee; --text: #1d2230; --muted: #6b7385;
-  --accent: #b7791f; --primary: #3b7cff; --input: #f7f8fb; --hover: #c8cfdc; --hover-bg: #eef2f8; --sel-bg: #e8effc;
-  --card: #fafbfd; --float: rgba(255,255,255,.96); --hint-bg: rgba(255,255,255,.85); --soft: #3d4456; --dash: #c9d0dc;
-}
-body.light .mode.active { color: var(--primary); }
-body.light .st.briefing, body.light .st.meeting { background: #fff4d6; color: #9a6b00; }
-body.light .st.in_progress { background: #e3f0ff; color: #1f63c6; }
-body.light .st.done { background: #e2f5e5; color: #2e7d32; }
-body.light .st.failed { background: #fde7e7; color: #c62828; }
-body.light .badge.busy { color: #1f63c6; border-color: #b8d3f5; }
-body.light .integ { color: #1f63c6; }
-body.light .pill.on { color: #2e7d32; border-color: #b9e0bf; }
-body.light dialog::backdrop { background: rgba(30,35,50,.35); }
-body.light .editbar, body.light .empty-stage .box { box-shadow: 0 10px 30px rgba(40,50,80,.12); }
-
 /* ---------------------------------------------------------------- panel chat karyawan */
 .chat { position: absolute; right: 14px; top: 14px; bottom: 44px; width: min(360px, calc(100% - 28px)); display: flex; flex-direction: column;
   background: var(--float); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 40px rgba(20,30,60,.18); overflow: hidden; z-index: 3; }
@@ -262,22 +245,7 @@ body.light .editbar, body.light .empty-stage .box { box-shadow: 0 10px 30px rgba
 }
 .roomtabs::-webkit-scrollbar { display: none; }
 .roomtabs:empty { display: none; }
-.roomtabs .rt {
-  flex: none; border: 0; background: transparent; color: var(--soft); font: 600 12px Inter, system-ui, sans-serif;
-  padding: 6px 11px; border-radius: 8px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center;
-}
-.roomtabs .rt:hover { background: var(--hover-bg); color: var(--text); }
-.roomtabs .rt.on { background: var(--sel-bg); color: var(--accent); }
-.roomtabs .rt svg { width: 14px; height: 14px; }
 canvas#office.edit ~ .roomtabs { display: none; }
-
-/* ---------------------------------------------------------------- tema Penthouse (malam, aksen emas) */
-body.luxe {
-  --bg: #0b0f1c; --panel: #121829; --panel-2: #192036; --line: #263049; --text: #eef0f6; --muted: #98a0b8;
-  --accent: #e0b366; --primary: #d6a95b; --input: #0c1120; --hover: #3a4566; --hover-bg: #1d2540; --sel-bg: #252e4c;
-  --card: #10162a; --float: rgba(16,21,38,.93); --hint-bg: rgba(10,14,26,.8); --soft: #c4cadb; --dash: #2f3958;
-}
-body.luxe button.primary { color: #1a1408; }
 
 .viewseg .mode { font-weight: 700; padding: 4px 10px; min-width: 38px; }
 
@@ -315,13 +283,11 @@ body.studio .node.sel { outline-color: #b4cdb8; }
 body.studio .node .ni.director { color: #6c7196; }
 body.studio .roomtabs, body.studio .zoomctl { box-shadow: 0 6px 22px rgba(38,62,53,.1); border-color: rgba(255,255,255,.8); }
 body.studio .roomtabs { padding: 6px; gap: 3px; }
-body.studio .roomtabs .rt { padding: 8px 12px; }
-body.studio .roomtabs .rt.on { background: #286b53; color: #fff; }
 body.studio .hint { border: 1px solid #dce4db; border-radius: 8px; padding: 7px 10px; }
 body.studio button.primary { box-shadow: 0 2px 4px rgba(38,62,53,.08); }
 body.studio button:focus-visible, body.studio input:focus-visible, body.studio select:focus-visible { outline: 2px solid #286b53; outline-offset: 3px; }
 @media (pointer: coarse) {
-  body.studio .roomtabs .rt, body.studio .zoomctl button { min-height: 44px; }
+  body.studio .zoomctl button { min-height: 44px; }
 }
 
 
@@ -343,7 +309,6 @@ body.studio.dark {
 body.studio.dark .card { background: var(--card); box-shadow: 0 3px 12px rgba(0,0,0,.25); }
 body.studio.dark .topbar { box-shadow: 0 2px 14px rgba(0,0,0,.3); }
 body.studio.dark .roomtabs, body.studio.dark .zoomctl { border-color: var(--line); box-shadow: 0 6px 22px rgba(0,0,0,.35); }
-body.studio.dark .roomtabs .rt.on { background: var(--primary); }
 body.studio.dark .hint { border-color: var(--line); }
 body.studio.dark .node.sel { outline-color: #2e6b55; }
 body.studio.dark .node .ni.director { color: #9aa3c9; }
@@ -458,7 +423,6 @@ body.studio.dark.ruang {
 .ruang .stagebar .mode.active { background: var(--sel-bg); color: var(--accent); }
 .ruang .icon-btn { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; background: var(--float); border-color: var(--line-2); }
 .ruang .roomtabs { left: auto; right: 12px; transform: none; max-width: calc(100% - 420px); background: var(--float); border-color: var(--line-2); }
-.ruang .roomtabs .rt.on { background: var(--sel-bg); color: var(--accent); }
 .ruang .zoomctl { background: var(--float); border-color: var(--line-2); }
 .ruang .insp { position: absolute; left: 12px; top: 64px; width: 300px; max-height: calc(100% - 120px); overflow-y: auto; z-index: 2; background: var(--float); border: 1px solid var(--line-2); border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.45); }
 .ruang .insp.noselect { display: none; }

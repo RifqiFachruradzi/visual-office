@@ -3,7 +3,6 @@
  *   Boss → (rapat) → Direktur Divisi → Lead Departemen → Anggota tim
  * Setiap level: briefing ke atasan, kerja, lalu lapor balik ke atasan.
  * Mode simulasi: progres acak. Mode AI: setiap agent memanggil Gemini (atau Claude) lewat backend.
- * Juga memetakan event live dari Claude Code hooks menjadi karyawan kantor.
  * ========================================================================= */
 (function () {
   const VO = window.VO;
@@ -217,7 +216,7 @@
         const integ = VO.integ.forEnt(S(), ent);
         if (integ) sub.refs = [...(sub.refs || []), 'Data ' + integ.label];
         (integ ? integ.augment(task, q.prompt) : Promise.resolve(q.prompt)).then((finalPrompt) => VO.ai.run(
-          { model: ent.model, system: VO.ai.systemPrompt(S(), ent), prompt: finalPrompt },
+          { system: VO.ai.systemPrompt(S(), ent), prompt: finalPrompt },
           (_, full) => {
             sub.output = full;
             job.progress = Math.min(0.95, 0.08 + full.length / 1800);
@@ -281,7 +280,6 @@
     try {
       const out = await VO.ai.run(
         {
-          model: ent.model,
           system: VO.ai.systemPrompt(S(), ent, true),
           prompt: `${instruction}\n\nTugas dari Boss: ${task.title}\n\nHasil kerja anggota:\n${joined}\n\nTulis dokumen final dalam markdown: judul, bagian-bagian bernomor, poin-poin, dan tabel bila perlu. Jangan menyebut nama anggota tim di dalam dokumen kecuali relevan.`,
           long: true,
@@ -301,90 +299,4 @@
     return `${VO.pick(verbs)} aspek **${ent.role}** untuk "${short(task.title, 50)}" — selesai (simulasi).`;
   }
 
-  /* ------------------------------------------------------------ live: Claude Code hooks */
-  const live = (VO.live = {});
-
-  function ensureLiveDept(s) {
-    let div = s.divisions.find((d) => d.live);
-    if (!div) {
-      const bottom = Math.max(12, ...s.divisions.map((d) => d.zone.y + d.zone.h), ...s.facilities.map((f) => f.y + f.h));
-      div = VO.addDivision(s, { name: 'Live · Claude Code', color: '#f4a261', directorRole: null });
-      div.live = true;
-      VO.setZone(s, div, { x: 2, y: bottom + 2, w: 24, h: 13 }, false);
-      div.directorDesk = { x: 4, y: bottom + 3 };
-      s.map.h = Math.max(s.map.h, bottom + 17);
-    }
-    let dept = s.departments.find((d) => d.divisionId === div.id);
-    if (!dept) {
-      dept = VO.addDepartment(s, div.id, { name: 'Sesi Aktif' });
-      dept.room = { x: div.zone.x + 1, y: div.zone.y + 4, w: 15, h: 6 };
-    }
-    return dept;
-  }
-
-  function liveAgent(s, ev) {
-    const key = ev.session_id || 'default';
-    let ag = s.agents.find((a) => a.live && a.sessionId === key);
-    if (!ag) {
-      const dept = ensureLiveDept(s);
-      const base = (ev.cwd || '').split(/[\\/]/).filter(Boolean).pop() || 'session';
-      ag = VO.addAgent(s, dept.id, { name: 'Claude · ' + base, role: 'Claude Code Session', live: true });
-      ag.sessionId = key;
-      ag.shirt = '#d97757';
-      sim.dirty = true;
-      sim.sync(s);
-      VO.log(s, `Sesi Claude Code baru masuk kantor: ${ag.name}`, 'live');
-    }
-    return ag;
-  }
-
-  function toolDetail(ev) {
-    const i = ev.tool_input || {};
-    const f = i.file_path || i.path || i.notebook_path;
-    if (f) return String(f).split(/[\\/]/).pop();
-    if (i.command) return short(String(i.command), 22);
-    if (i.pattern) return short(String(i.pattern), 22);
-    if (i.description) return short(String(i.description), 22);
-    return '';
-  }
-
-  live.handle = function (ev) {
-    const s = S();
-    const name = ev.hook_event_name || ev.type;
-    if (!name) return;
-    const ag = liveAgent(s, ev);
-    const rt = sim.rt.get(ag.id);
-    switch (name) {
-      case 'SessionStart': sim.say(ag.id, 'Masuk kantor', 3, 'wave'); break;
-      case 'UserPromptSubmit': {
-        const p = short(String(ev.prompt || 'Tugas baru'), 30);
-        VO.log(s, `${ag.name} menerima prompt: "${short(String(ev.prompt || ''), 80)}"`, 'task');
-        sim.say('boss', p, 3, 'task');
-        if (rt) rt.liveTool = 'thinking';
-        brief(ag, 'boss', { title: p });
-        break;
-      }
-      case 'PreToolUse': {
-        if (rt) rt.liveTool = ev.tool_name || 'tool';
-        const d = toolDetail(ev);
-        sim.say(ag.id, `${ev.tool_name || 'tool'}${d ? ' · ' + d : ''}`, 2.5, 'tool');
-        break;
-      }
-      case 'PostToolUse': if (rt) rt.liveTool = 'thinking'; break;
-      case 'SubagentStop': sim.say(ag.id, 'Subagent selesai', 2.5, 'puzzle'); break;
-      case 'Notification': sim.say(ag.id, short(String(ev.message || 'Butuh perhatian'), 34), 5, 'bell'); VO.log(s, `${ag.name}: ${ev.message || ''}`, 'bell'); break;
-      case 'Stop':
-        if (rt) rt.liveTool = null;
-        VO.log(s, `${ag.name} selesai merespons`, 'check');
-        reportTo(ag, 'boss');
-        break;
-      case 'SessionEnd':
-        VO.log(s, `${ag.name} pulang (sesi berakhir)`, 'wave');
-        sim.say(ag.id, 'Pulang dulu', 2, 'wave');
-        setTimeout(() => { VO.removeAgent(S(), ag.id); sim.dirty = true; sim.sync(S()); changed(); }, 2200);
-        break;
-      default: sim.say(ag.id, name, 2, 'zap');
-    }
-    changed();
-  };
 })();

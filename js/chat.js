@@ -81,7 +81,7 @@
           prompt = await integ.augment({ id: 'chat-' + a.id + '-' + Math.floor(Date.now() / 60000) }, prompt);
         }
         await VO.ai.run(
-          { model: a.model, system: VO.ai.systemPrompt(S(), a), prompt },
+          { system: VO.ai.systemPrompt(S(), a), prompt },
           (_, full) => { reply.text = full; chat.render(); },
           (w) => { if (w) { reply.text = w; chat.render(); } }
         );

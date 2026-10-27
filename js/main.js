@@ -101,7 +101,11 @@
       $('who').title = 'Kamu adalah Boss · data tersimpan di cloud';
     }
     if (!s) { s = VO.defaultState(); app._saveDirty = true; }
-    s.agents = s.agents.filter((a) => !a.live); // sesi live tidak bertahan setelah reload
+    // data lama: sisa sesi "live" Claude Code (fitur sudah dihapus) dibuang
+    const liveDiv = new Set(s.divisions.filter((d) => d.live).map((d) => d.id));
+    s.agents = s.agents.filter((a) => !a.live && !liveDiv.has(a.divisionId));
+    s.departments = s.departments.filter((d) => !liveDiv.has(d.divisionId));
+    s.divisions = s.divisions.filter((d) => !d.live);
     app.state = s;
     // Penthouse: kantor lama mendapat kolam renang sekali (bisa dihapus/dipindah di Edit Layout)
     if (!s.settings.poolV4) {
@@ -147,7 +151,6 @@
       }
       aiPill();
       app._dirty = true;
-      VO.ai.listen((ev) => VO.live.handle(ev)); // hanya aktif di server lokal
     });
 
     let last = performance.now();
@@ -303,16 +306,6 @@
   VO.ai.onChange = () => aiPill();
   const ui = () => VO.ui;
 
-  // Satu tampilan saja: Studio (kantor 2 lantai). Pilihan tema lain sudah dihapus.
-  function applyTheme() {
-    const t = app.state.settings.theme || 'studio';
-    document.body.classList.remove('light'); // mode gelap untuk semua (lebih nyaman di mata)
-    document.body.classList.add('dark');
-    document.body.classList.toggle('luxe', t === 'luxe');
-    document.body.classList.toggle('studio', t === 'studio');
-    // (tidak ada tombol tema)
-  }
-
   // Tombol 2D / 3D: ganti proyeksi kamera, posisi & data kantor tetap sama
   function applyView() {
     const v = app.state.settings.view === '2d' ? '2d' : '3d';
@@ -390,14 +383,10 @@
 
   function syncControls() {
     const s = app.state;
-    applyTheme();
     applyView();
     $('companyName').value = s.company.name;
     $('ambient').checked = !!s.settings.ambient;
     $('aiMode').checked = !!s.settings.aiMode && VO.ai.available;
-    $('speed').value = String(s.settings.speed || 1);
-    $('rpm').value = String(s.settings.rpm || 10);
-    $('floorSel').value = s.settings.floor;
     $('layoutSel').value = VO.openPlan(s) ? 'open' : 'rooms';
     $('mapW').value = s.map.w;
     $('mapH').value = s.map.h;
@@ -436,8 +425,6 @@
       aiPill(); app.changed();
       VO.ui.toast(e.target.checked ? `Tugas baru akan dikerjakan oleh ${VO.ai.label()}` : 'Kembali ke mode simulasi', e.target.checked ? 'sparkles' : 'dice');
     };
-    $('rpm').onchange = (e) => { s().settings.rpm = parseInt(e.target.value, 10); app.changed(); };
-    $('speed').onchange = (e) => { s().settings.speed = parseFloat(e.target.value); app.changed(); };
     $('btnFit').onclick = () => R.fit($('office'), s());
     $('zoomIn').onclick = () => app.zoomBy(1.25);
     $('zoomOut').onclick = () => app.zoomBy(1 / 1.25);
@@ -548,8 +535,6 @@
       VO.log(s, e.target.value === 'open' ? 'Tata ruang: satu ruangan per divisi (open plan)' : 'Tata ruang: ruang terpisah per departemen', 'layout');
       app.layoutChanged();
     };
-    $('floorSel').innerHTML = Object.entries(VO.FLOORS).map(([k, f]) => `<option value="${k}">${f.label}</option>`).join('');
-    $('floorSel').onchange = (e) => { app.state.settings.floor = e.target.value; app.layoutChanged(); };
     const mapSize = () => {
       const s = app.state;
       s.map.w = VO.clamp(parseInt($('mapW').value, 10) || s.map.w, 30, 160);
@@ -574,7 +559,7 @@
       if (!title) return;
       const [targetType, targetId] = $('taskTarget').value.split(':');
       // perintah membuat video → alur programmatic video (naskah → template → MP4 → Galeri)
-      if (VO.video && VO.video.isRequest(title) && VO.video.supported()) {
+      if (VO.video && VO.video.isRequest(title)) {
         const s = app.state;
         const divId = targetType === 'division' ? targetId : targetType === 'dept' ? (s.departments.find((d) => d.id === targetId) || {}).divisionId : targetType === 'agent' ? (s.agents.find((a) => a.id === targetId) || {}).divisionId : null;
         $('taskTitle').value = '';

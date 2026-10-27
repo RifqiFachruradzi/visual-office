@@ -5,8 +5,6 @@
  *   1. Menyajikan file statis (index.html, js/, css/).
  *   2. POST /api/run    → menjalankan satu agent memakai Gemini (gratis,
  *                          GEMINI_API_KEY) atau Claude (ANTHROPIC_API_KEY).
- *   3. POST /api/event  → menerima event dari Claude Code hooks,
- *      GET  /api/events → menyiarkannya ke browser (Server-Sent Events).
  *
  * Catatan: sengaja TIDAK diletakkan di root sebagai server.js, karena Vercel
  * akan mendeteksinya sebagai entrypoint server dan tidak menyajikan file statis.
@@ -32,39 +30,12 @@ const HOST = process.env.HOST || '127.0.0.1';
 /* ------------------------------------------------------------ util */
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary' };
 
-function readBody(req, limit = 1_000_000) {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks = [];
-    req.on('data', (c) => {
-      size += c.length;
-      if (size > limit) { reject(new Error('Body terlalu besar')); req.destroy(); return; }
-      chunks.push(c);
-    });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
-  });
-}
-
 const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
-const sse = (res) => res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-const send = (res, obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
-
-/* ------------------------------------------------------------ live events */
-const listeners = new Set();
-function broadcast(ev) { for (const res of listeners) send(res, ev); }
-setInterval(() => { for (const res of listeners) res.write(': ping\n\n'); }, 25_000).unref();
 
 /* ------------------------------------------------------------ server */
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   try {
-    // hook Claude Code mengirim event tanpa cookie (server hanya mendengar 127.0.0.1)
-    if (url.pathname === '/api/event' && req.method === 'POST') {
-      const ev = JSON.parse((await readBody(req)) || '{}');
-      broadcast(ev);
-      return json(res, 200, { ok: true, delivered: listeners.size });
-    }
     // login: sama seperti middleware Vercel
     const { isWorker } = await import('../lib/render.js');
     const worker = (url.pathname === '/api/office' || url.pathname.startsWith('/files/')) && isWorker(req); // worker render (VPS)
@@ -89,16 +60,9 @@ const server = http.createServer(async (req, res) => {
       return serveLocalFile(req, res, url.pathname.slice(7));
     }
     if (url.pathname === '/api/health') {
-      return json(res, 200, { ok: true, ...status(), live: true, host: 'local', listeners: listeners.size });
+      return json(res, 200, { ok: true, ...status(), host: 'local' });
     }
     if (url.pathname === '/api/run' && req.method === 'POST') return handleRun(req, res);
-    if (url.pathname === '/api/events') {
-      sse(res);
-      res.write(': connected\n\n');
-      listeners.add(res);
-      req.on('close', () => listeners.delete(res));
-      return;
-    }
 
     // file statis
     const rel = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
@@ -120,6 +84,5 @@ server.listen(PORT, HOST, () => {
   const auth = authConfig();
   console.log(`   Mode AI   : ${st.ai ? '[aktif] ' : '[mati]  '}${st.reason}`);
   const loginTxt = { db: '[aktif] akun di Upstash Redis (daftar/masuk dengan email)', env: '[aktif] ' + auth.users.size + ' akun dari APP_USERNAME/APP_USERS', none: '[mati]  isi KV_REST_API_URL/TOKEN (atau APP_USERNAME & APP_PASSWORD) di .env' }[auth.mode];
-  console.log(`   Login     : ${loginTxt}`);
-  console.log(`   Live hook : POST http://localhost:${PORT}/api/event  (lihat README.md)\n`);
+  console.log(`   Login     : ${loginTxt}\n`);
 });

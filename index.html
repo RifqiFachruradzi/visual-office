@@ -31,14 +31,8 @@
       <div class="menu">
         <label class="toggle" title="Karyawan bergerak sendiri (ngopi, ngobrol, dll.)"><input type="checkbox" id="ambient" /> Aktivitas otomatis</label>
         <label class="toggle" title="Agen mengerjakan tugas dengan AI sungguhan"><input type="checkbox" id="aiMode" /> Mode AI</label>
-        <label class="mrow">Batas AI <select id="rpm" title="Batas panggilan AI per menit (free tier Gemini ± 10–15/menit)">
-          <option value="5">5/mnt</option><option value="10">10/mnt</option><option value="15">15/mnt</option><option value="30">30/mnt</option><option value="60">60/mnt</option>
-        </select></label>
         <label class="mrow">Grafis 3D <select id="gfx" title="Kualitas tampilan 3D di perangkat ini">
           <option value="2">HD</option><option value="1">Sedang</option><option value="0">Hemat</option>
-        </select></label>
-        <label class="mrow">Kecepatan <select id="speed" title="Kecepatan simulasi">
-          <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
         </select></label>
         <hr />
         <button type="button" id="btnExport"><i data-icon="download"></i> Export JSON</button>
@@ -111,8 +105,6 @@
                 <option value="open">Satu ruangan (open plan)</option>
                 <option value="rooms">Ruang per departemen</option>
               </select>
-              <span class="lbl">Lantai:</span>
-              <select id="floorSel"></select>
               <span class="lbl">Peta:</span>
               <input type="number" id="mapW" min="30" max="160" title="Lebar (tile)" />×<input type="number" id="mapH" min="20" max="120" title="Tinggi (tile)" />
               <button id="btnAuto" class="small primary" title="Susun ulang semua ruangan otomatis"><i data-icon="wand"></i> Tata Otomatis</button>

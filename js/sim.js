@@ -166,7 +166,7 @@
         id: e.id, x: (start.x + 0.5) * T, y: (start.y + 0.5) * T,
         queue: [], cur: null, path: null, status: 'idle', bubble: null,
         sitting: !!seat, facing: 1, phase: Math.random() * 10,
-        idleT: VO.rand(3, 15), working: false, progress: 0, liveTool: null,
+        idleT: VO.rand(3, 15), working: false, progress: 0,
       });
     }
   };
@@ -273,8 +273,6 @@
   /* ------------------------------------------------------------ update */
   sim.update = function (s, dt) {
     if (sim.dirty || !sim.grid) sim.buildGrid(s);
-    const speed = s.settings.speed || 1;
-    dt *= speed;
     for (const rt of sim.rt.values()) step(s, rt, dt);
   };
 
@@ -341,14 +339,13 @@
   function idle(s, rt, dt) {
     const e = VO.findEntity(s, rt.id);
     if (!e) return;
-    if (e.live) { rt.status = rt.liveTool ? 'working' : 'idle'; rt.working = !!rt.liveTool; }
     const seat = VO.seatOf(s, e);
     if (seat && !rt.sitting) {
       sim.act(rt.id, sim.homeActions(s, rt.id), { ambient: true });
       return;
     }
-    if (!rt.liveTool) rt.status = 'idle';
-    if (!s.settings.ambient || e.live) return;
+    rt.status = 'idle';
+    if (!s.settings.ambient) return;
     rt.idleT -= dt;
     if (rt.idleT > 0) return;
     rt.idleT = VO.rand(10, 30);

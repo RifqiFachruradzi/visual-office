@@ -20,17 +20,9 @@
   VO.HAIRS = ['#2b1d14', '#4a3020', '#7a4a22', '#c9a15b', '#d0d0d0', '#151515', '#a33b20', '#3d2b5c'];
   VO.SHIRTS = ['#4f8cff', '#ff7a59', '#2ec4b6', '#ffbf3c', '#9b5de5', '#f15bb5', '#3a86ff', '#8ac926', '#ef476f', '#118ab2'];
 
-  // Gemini dipakai dulu karena ada free tier. Alias *-latest selalu menunjuk versi terbaru.
+  // Model AI dipilih otomatis oleh server (9router di VPS, cadangan Gemini); field `model` di data
+  // karyawan lama dibiarkan agar file ekspor lama tetap bisa diimpor.
   VO.DEFAULT_MODEL = 'gemini-flash-latest';
-  VO.MODELS = [
-    { id: '9router', label: '9router (VPS — model default router)', provider: '9router' },
-    { id: 'gemini-flash-latest', label: 'Gemini Flash (gratis)', provider: 'gemini' },
-    { id: 'gemini-flash-lite-latest', label: 'Gemini Flash-Lite (gratis, paling hemat)', provider: 'gemini' },
-    { id: 'gemini-pro-latest', label: 'Gemini Pro (kuota gratis terbatas)', provider: 'gemini' },
-    { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (butuh key Claude)', provider: 'claude' },
-    { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (butuh key Claude)', provider: 'claude' },
-    { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (butuh key Claude)', provider: 'claude' },
-  ];
 
   VO.FURNITURE = {
     plant: { label: 'Tanaman', icon: 'plant' },
@@ -52,13 +44,6 @@
     lounge: { label: 'Lounge', w: 8, h: 6, color: '#9d4edd' },
     pool: { label: 'Kolam Renang', w: 12, h: 11, color: '#1e88e5' },
     billiard: { label: 'Ruang Biliar', w: 9, h: 7, color: '#2e7d32' },
-  };
-
-  VO.FLOORS = {
-    wood: { label: 'Kayu', a: '#c9a27a', b: '#bf966d' },
-    tile: { label: 'Keramik', a: '#d9dde3', b: '#cfd4db' },
-    dark: { label: 'Gelap', a: '#2f3542', b: '#2a2f3b' },
-    mint: { label: 'Mint', a: '#cfe8dc', b: '#c3dfd1' },
   };
 
   const FIRST = ['Andi', 'Budi', 'Citra', 'Dewi', 'Eka', 'Fajar', 'Gita', 'Hadi', 'Indah', 'Joko', 'Kirana', 'Lukman', 'Maya', 'Nanda', 'Oki', 'Putri', 'Rama', 'Sari', 'Tono', 'Umi', 'Vina', 'Wawan', 'Yudi', 'Zahra', 'Bayu', 'Laras', 'Raka', 'Tiara'];
@@ -104,7 +89,6 @@
     skin: o.skin || VO.pick(VO.SKINS),
     hair: o.hair || VO.pick(VO.HAIRS),
     shirt: o.shirt || VO.pick(VO.SHIRTS),
-    live: !!o.live,
     memory: Array.isArray(o.memory) ? o.memory : [],
     cast: o.cast || '', style: o.style, hairStyle: o.hairStyle, top: o.top, topV2: o.top ? true : undefined, pants: o.pants, tie: o.tie, glasses: o.glasses, mustache: o.mustache,
   });
@@ -124,7 +108,7 @@
     const s = {
       version: 1,
       company: { name: 'Kantor AI Saya' },
-      settings: { floor: 'wood', ambient: true, aiMode: false, speed: 1, rpm: 10, modelsV2: true, theme: 'studio', themeV3: true, themeV4: true, themeV8: true, layoutV9: true, assetsV10: true, symV11: true, layout: 'open', layoutV5: true, dirPosV7: true },
+      settings: { ambient: true, aiMode: false, modelsV2: true, theme: 'studio', themeV8: true, layoutV9: true, assetsV10: true, symV11: true, layout: 'open', layoutV5: true, dirPosV7: true },
       map: { w: 64, h: 44 },
       // Boss = kamu (pengguna yang login). Namanya mengikuti akun login.
       boss: VO.makeAgent({ id: 'boss', name: 'Boss', role: 'Boss (Kamu)', model: VO.DEFAULT_MODEL, style: 'suit', top: '#1f2430', tie: '#c62828', pants: '#1f2430', hair: '#1c1c1c', hairStyle: 1 }),
@@ -549,8 +533,6 @@
     if (!s || typeof s !== 'object' || !s.boss || !Array.isArray(s.agents)) throw new Error('Format file tidak dikenali');
     const d = VO.defaultState();
     const needV2 = !(s.settings && s.settings.modelsV2);
-    const needV3 = !(s.settings && s.settings.themeV3);
-    const needV4 = !(s.settings && s.settings.themeV4);
     const needV5 = !(s.settings && s.settings.layoutV5);
     const needV7 = !(s.settings && s.settings.dirPosV7);
     const needV8 = !(s.settings && s.settings.themeV8);
@@ -568,10 +550,6 @@
       s.settings.modelsV2 = true;
     }
     for (const a of [s.boss, ...s.agents]) { if (!Array.isArray(a.memory)) a.memory = []; VO.ensureLook(a); }
-    // v3: tampilan default berganti ke Kantor Klasik (tema lain tetap bisa dipilih)
-    if (needV3) { s.settings.theme = 'classic'; s.settings.themeV3 = true; }
-    // v4: tampilan default berganti ke Penthouse (kantor mewah malam hari)
-    if (needV4) { s.settings.theme = 'luxe'; s.settings.themeV4 = true; }
     // v5: tata ruang open plan — direktur pindah ke depan-tengah ruangan divisinya
     if (needV5) { s.settings.layout = 'open'; s.settings.layoutV5 = true; for (const div of s.divisions) if (div.zone) VO.placeDirector(s, div); }
     // v7: atasan Finance Division duduk di sisi kanan ruangan (bisa diubah di Edit Divisi)
@@ -579,7 +557,7 @@
     s.settings.theme = 'studio'; // hanya ada satu tampilan (Studio)
     // v9: denah simetris (perspektif depan, baris divisi di tengah, resepsionis) → tata ulang sekali
     if (needV9) { s.settings.layoutV9 = true; if (!needV8 && (s.divisions.length || s.facilities.length)) VO.autoLayout(s); }
-    if (needV8) { s.settings.theme = 'studio'; s.settings.themeV8 = true; if (s.divisions.length || s.facilities.length) VO.autoLayout(s); }
+    if (needV8) { s.settings.themeV8 = true; if (s.divisions.length || s.facilities.length) VO.autoLayout(s); }
     // v10: tampilan 3D dari aset GLB → ukuran fasilitas mengikuti model (1 tile = 1 m), tata ulang sekali
     if (needV10) {
       s.settings.assetsV10 = true;

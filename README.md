@@ -8,7 +8,7 @@
 - 📊 **Terhubung ke data bisnis nyata**: agen membaca data aplikasi MiniMarket & Gudang untuk menyusun laporan stok dan penjualan.
 - 🎬 **Lebih dari sekadar chat**: render 3D (three.js), perintah lewat bot Telegram, sampai pembuatan video MP4 otomatis dengan Remotion.
 
-Visualisasi kantor **isometrik 2.5D** (gaya pixel ala Habbo) yang karyawannya adalah **agent AI** (ditenagai Gemini, gratis). Kamu bisa mengatur bentuk kantor, menambah **divisi**, **departemen**, merekrut **agen**, dan ada **Boss** yang memberi perintah.
+Visualisasi kantor **3D** yang karyawannya adalah **agent AI** (ditenagai 9router di VPS, cadangan Gemini). Kamu bisa mengatur bentuk kantor, menambah **divisi**, **departemen**, merekrut **agen**, dan ada **Boss** yang memberi perintah.
 
 ## Fitur
 
@@ -23,16 +23,11 @@ Visualisasi kantor **isometrik 2.5D** (gaya pixel ala Habbo) yang karyawannya ad
 | **Hierarki kantor** | Kamu (Boss) → Direktur Divisi → Ketua Tim (lead) → Anggota. Setiap level briefing ke atasan, bekerja di mejanya, lalu melapor balik. |
 | **Divisi & Departemen** | Tambah / edit / hapus divisi (zona berwarna) dan departemen (ruangan dengan meja otomatis). |
 | **Karakter 3D** | Karyawan memakai 14 model 3D dari `office_cast_lineup.glb` (dipra-render menjadi sprite: depan/belakang/samping, berjalan, duduk, mengetik, sorak). Pilih karakter per karyawan di form **Edit → Karakter 3D** (default otomatis sesuai gaya pakaian). |
-| **Tampilan Studio (satu-satunya tampilan)** | Bentuk gedung mengikuti `office_ai_expanded_v2.glb`: kamera depan **simetris** (perspektif satu titik, dinding kiri & kanan sama), pelat fondasi tebal, lantai ubin krem kotak-kotak, meja resepsionis **OFFICE AI** di depan, baris divisi di tengah lantai. |
-| **Detail Studio** | Kantor **2 lantai** yang terang dengan kamera depan (3D): ruang Boss, rapat, pantry, kolam & biliar di **lantai mezanin** berpagar kaca, **tangga kayu** turun ke lantai 1; setiap **divisi berada dalam ruangan bersekat kaca** (rangka putih, list warna divisi, pintu depan & belakang, lantai sedikit berwarna divisi); departemen sebagai zona lantai berwarna pastel dengan sekat rendah & papan nama (nama · jumlah orang), lantai kayu terang, dinding putih berjendela, pintu & rak buku. Karyawan berjalan naik-turun tangga. |
-| **Tampilan Penthouse** | Kantor mewah malam hari: lantai panel gelap bergaris cahaya cyan (sama seperti Ruang Boss), dinding kaca dengan pemandangan gedung kota yang menyala diselingi pilar kayu berlampu, ruang rapat berdinding kaca dengan TV yang menampilkan tugas yang sedang berjalan, layar grafik di tiap departemen, meja walnut dengan dua monitor, karpet biru tua, **kolam renang** beranimasi dengan kursi berjemur & payung, lampu LED di tepi gedung, langit berbintang. Label nama pil gelap di kaki karyawan, balon putih berikon, lencana merah **!** saat karyawan menunggu Boss. **Tab ruangan** di atas kanvas untuk langsung terbang ke ruangan/divisi. |
-| **Papan tugas departemen** | Layar besar di dinding tiap departemen (tema Penthouse) menampilkan **daftar permintaan tugas dari atasan** untuk departemen itu: judul, status (Briefing / Rapat / Dikerjakan / Selesai / Gagal), dan progres tim; tugas aktif di atas. |
-| **Meja manager & posisi atasan** | Ketua tim (manager) mendapat **meja L khusus**: lebih lebar dengan list aksen, monitor besar + monitor samping, lampu meja, papan nama, karpet kecil, dan kursi eksekutif bersandaran tinggi, berbeda dari meja staf. Posisi meja direktur tiap divisi bisa diatur **Kiri / Tengah / Kanan** di **Edit Divisi** (Finance Division otomatis di kanan). |
-| **Ruang Boss berteknologi** | Meja kaca gelap di **sisi kanan** ruangan dengan strip LED cyan berdenyut dan hanya **laptop** di atasnya, **video wall** real-time di dinding (tugas tuntas, agen sibuk, tugas yang sedang berjalan, jam & tanggal, status AI), sofa tamu dengan meja kopi kaca, meja meeting bundar kecil dengan kursi tub, tanaman, server rack berkedip, lantai panel gelap dengan garis cahaya, dan cincin cahaya di sekitar meja. |
-| **Ruang Biliar** | Fasilitas baru: meja biliar dengan kain hijau, lubang, bola (bola putih bergulir pelan), rak stik di dinding, dan lampu gantung. Karyawan sesekali main biliar saat santai. Tambah lewat **Edit Layout → + Biliar** (kantor lama mendapat satu otomatis). |
+| **Kantor 2 lantai** | Satu tampilan (Studio): lantai atas (mezanin) berisi Ruang Boss, Ruang Rapat, Pantry, Lounge/Kolam & Biliar; tangga turun ke lantai 1 tempat ruangan divisi & departemen; meja resepsionis **OFFICE AI** di depan. Karyawan berjalan naik-turun tangga, sesekali ngopi atau main biliar. |
+| **Posisi atasan** | Ketua tim duduk di meja pertama departemennya; posisi meja direktur tiap divisi bisa diatur **Kiri / Tengah / Kanan** di **Edit Divisi**. |
 | **Tata ruang open plan (default)** | Setiap divisi menjadi **satu ruangan** minimalis: direktur (atasan) duduk di meja eksekutif di depan-tengah menghadap timnya, departemen ditandai karpet/kluster meja tanpa dinding pemisah. Gaya lama (ruang berdinding per departemen) bisa dipilih di **Edit Layout → Tata ruang**. |
 | **Tombol zoom + / −** | Di pojok kanan bawah kanvas: **+** perbesar, **−** perkecil (zoom halus di tengah layar), angka persen / ikon kotak = tampilkan seluruh kantor. Pintasan keyboard `+` / `-`; scroll mouse tetap bisa dipakai. |
-| **Tombol 2D / 3D** | Di bar atas: **3D** = isometrik, **2D** = denah dari atas (gaya peta RPG). Berlaku untuk semua tema; data, posisi, klik karyawan & Edit Layout tetap bekerja. Pintasan keyboard: `2` / `3`. |
+| **Tombol 2D / 3D** | Di bar atas: **3D** = kantor 3D perspektif, **2D** = denah dari atas. Data, posisi, klik karyawan & Edit Layout tetap bekerja. Pintasan keyboard: `2` / `3`. |
 | **Kamera menghadap depan (perspektif)** | Tampilan 3D melihat gedung lurus dari depan dengan **perspektif sungguhan** (mata kamera tetap di depan-atas gedung, sudut 36°): dinding samping menyempit ke belakang, yang dekat tampak lebih besar. Label, klik karyawan & Edit Layout memakai proyeksi perspektif yang sama; kamera bisa di-zoom (tombol + / −, scroll) dan digeser (drag). Label nama yang bertabrakan otomatis digeser ke baris lain. |
 | **Tur ruangan** | Navigator **‹ Seluruh kantor ›** di pojok kanan atas kantor: kamera meluncur & zoom halus (dengan sedikit motion blur) ke tiap divisi, departemennya, lalu fasilitas, disertai judul ruangan. **Klik ruangan/zona di kantor** (atau di Struktur) juga langsung zoom ke sana dan navigator ikut pindah, jadi ‹ › berlanjut ke ruangan sebelahnya. Klik nama untuk lompat langsung, **AUTO** untuk keliling sendiri tiap ± 5 detik (berhenti saat kantor disentuh). Pintasan: `←` / `→`, `A`. |
 | **Tampilan 3D dari aset GLB** | Mode 3D kini digambar dengan three.js (WebGL) langsung dari model: gedung `assets/office/office_empty.glb`, Ruang Boss `boss_room.glb`, Ruang Biliar `billiard_room.glb`, Kolam `swimming_pool.glb`; meja kerja, kursi, meja direktur, meja rapat, pantry, lounge, resepsionis, server & tanaman diambil dari `office_ai_expanded_v2.glb`; karakter dari `office_cast_lineup.glb` (berjalan, duduk, mengetik). Denah tetap mengikuti data (1 tile = 1 m), jadi divisi/karyawan baru langsung mendapat zona & meja 3D. Bila WebGL tidak tersedia, otomatis kembali ke tampilan kanvas lama. |
@@ -41,19 +36,14 @@ Visualisasi kantor **isometrik 2.5D** (gaya pixel ala Habbo) yang karyawannya ad
 | **Dinding kaca ruangan** | Tiap zona divisi dikelilingi **dinding kaca berangka gelap** setinggi 2,2 m (pintu depan & belakang); tiap departemen diberi **sekat kaca rendah** (1 m) di tepi karpet dengan celah masuk di depan. Kantor baru & kantor contoh memakai **Lounge** sebagai pengganti Kolam Renang (kolam tetap bisa ditambah lewat Edit layout). |
 | **Lantai atas** | Lantai papan kayu terang, **pagar balkon kaca** bertiang gelap, ruangan bersekat **kaca berangka hitam** (Ruang Boss & Rapat juga di depan, dengan celah pintu); Ruang Rapat berkarpet dengan **dinding panel kayu berlis emas**, Pantry berubin krem dengan backsplash mint & rak, Lounge berkarpet dengan dinding sage; dinding gedung putih & jendela biru langit. |
 | **Dashboard agen** | Klik karyawan → kamera terbang mendekat dan muncul kartu dashboard di samping karakternya: status langsung, model, departemen, **tugas selesai, tingkat sukses, antrean, dokumen**, tugas yang sedang dikerjakan (dengan progres), hasil kerja terakhir, serta tombol **Beri tugas**, **Chat**, **Edit**, **Lihat dokumen**. Detail (instruksi, ingatan, jadikan lead, hapus) ada di bagian *Detail & pengaturan*. Tutup dengan ✕ atau `Esc`. |
-| **Tampilan Kantor Klasik** | Kantor pixel isometrik klasik: lantai ubin lavender, dinding abu berjendela dengan poster, meja krem berlaci dengan monitor krem & tempat sampah, kursi biru, sekat kubikel kaca berbingkai biru, rak kaca biru, pohon bonsai, sofa biru di karpet hijau, mesin fotokopi, karpet biru di Ruang Boss; karyawan berupa manusia. |
-| **Tampilan Robot** | Karyawan berupa robot imut (kepala putih dengan layar wajah, lengan & kaki oranye; aksesori sesuai jabatan seperti headphone atau gulungan film), pulau kerja putih yang terangkat, aksen biru kobalt & koral, label pil dengan titik status dan chip aktivitas oranye. |
-| **Tampilan Modern** | Kantor terbuka yang terang: lantai putih, sekat rendah & tiang tipis, meja putih, nama tim dicat di lantai, dan kartu nama melayang (nama + jabatan) di atas tiap karyawan. Tombol tema di bar atas berganti Studio → Penthouse → Kantor Klasik → Robot → Modern → **Pixel** (gelap, gaya Habbo). |
-| **Chat dengan karyawan** | Klik karyawan → panel chat. Jawaban dari Gemini sesuai persona, ingatan, dan dokumen relevan; karyawan departemen Gudang menjawab dari data Gudang-Document. Riwayat chat tersimpan per karyawan. |
-| **Karakter gaya Habbo** | Karyawan isometrik dengan gaya pakaian (jas & dasi, kemeja & dasi, cardigan & rok), 6 model rambut, kacamata, kumis, dan warna yang bisa diatur. Boss memakai mahkota. |
-| **Agen AI** | Nama, jabatan, model (**Gemini Flash / Flash-Lite / Pro** — gratis; Claude opsional), *system prompt* / kepribadian, warna baju-rambut-kulit, pindah departemen, jadikan lead. |
-| **Editor layout** | Geser ruangan & zona, ubah ukuran (pojok kanan-bawah), tambah Ruang Rapat / Pantry / Lounge, taruh furnitur (tanaman, sofa, rak buku, whiteboard, dispenser, printer, server, arcade), ganti lantai, ukuran peta, **Tata Otomatis**. |
+| **Chat dengan karyawan** | Tombol **Chat** di kartu karyawan → panel chat. Jawaban dari Gemini sesuai persona, ingatan, dan dokumen relevan; karyawan departemen Gudang menjawab dari data Gudang-Document. Riwayat chat tersimpan per karyawan. |
+| **Agen AI** | Nama, jabatan, *system prompt* / kepribadian, karakter 3D & warna, pindah departemen, jadikan lead. Model AI dipilih otomatis oleh server (9router di VPS, cadangan Gemini). |
+| **Editor layout** | Geser ruangan & zona, ubah ukuran (pojok kanan-bawah), tambah Ruang Rapat / Pantry / Lounge / Kolam / Biliar, taruh furnitur (tanaman, sofa, rak buku, whiteboard, dispenser, printer, server, arcade), ukuran peta, **Tata Otomatis**. |
 | **Perintah Boss** | Beri tugas ke seluruh kantor (ada rapat besar di ruang rapat), satu divisi, satu tim, atau satu agen. Lihat progres & hasil tiap agen. |
 | **Mode simulasi** | Jalan tanpa internet/API: karyawan ngopi, ngobrol, brainstorm, dan mengerjakan tugas secara simulasi. |
-| **Mode AI nyata** | Setiap agen benar-benar memanggil **Gemini** (free tier) dengan persona & jabatannya; lead & direktur merangkum laporan timnya, Boss membuat ringkasan eksekutif. Panggilan diantrekan sesuai batas per menit & otomatis dicoba ulang saat kena rate limit. |
+| **Mode AI nyata** | Setiap agen benar-benar memanggil **Gemini** (free tier) dengan persona & jabatannya; lead & direktur merangkum laporan timnya, Boss membuat ringkasan eksekutif. Panggilan diantrekan (± 15/menit) & otomatis dicoba ulang saat kena rate limit. |
 | **Simpanan (ingatan agen)** | Tiap agen mengingat 6 hasil kerja terakhirnya dan memakainya sebagai konteks di tugas berikutnya. Lihat / hapus di Inspector. |
 | **Gudang Dokumen** | Semua laporan & hasil kerja tersimpan otomatis. Unggah file `.txt`/`.md` (SOP, panduan brand, data produk) — agen otomatis membaca dokumen yang relevan dengan tugasnya. Bisa dicari, diunduh sebagai **PDF** atau `.md`, dihapus. Laporan tugas juga bisa diunduh PDF langsung dari detail tugas. |
-| **Live Claude Code** | Sesi Claude Code-mu muncul sebagai karyawan: menerima prompt dari Boss, memakai tool (Edit, Bash, …) di mejanya, lalu melapor saat selesai. |
 | **Simpan** | Tersimpan otomatis ke database per akun (tiap ±8 detik) + cache di browser, plus Export / Import file JSON. |
 
 ## Cara menjalankan
@@ -61,7 +51,7 @@ Visualisasi kantor **isometrik 2.5D** (gaya pixel ala Habbo) yang karyawannya ad
 ### Opsi A — paling cepat (offline, mode simulasi)
 Buka `index.html` langsung di browser. Selesai.
 
-### Opsi B — server lokal (mode AI + live Claude Code)
+### Opsi B — server lokal (mode AI)
 Butuh Node.js 20.12+.
 
 ```bash
@@ -88,7 +78,6 @@ Proyek ini siap Vercel tanpa konfigurasi build: file statis + Vercel Functions d
    **Settings → Git → Production Branch** atau merge branch ini ke `main`.
 
 Catatan Vercel:
-- Fitur **Live Claude Code** (hooks) hanya tersedia di server lokal, karena butuh koneksi SSE yang terus hidup.
 - Tanpa database (dan tanpa `APP_USERNAME`/`APP_PASSWORD`), deployment Vercel **terkunci total** — halaman login menampilkan pesan setup.
 - Login melindungi halaman dan `/api/run`. Karena siapa pun bisa mendaftar, pakai `REGISTER_CODE` atau `ALLOW_REGISTER=false` bila kuota Gemini tidak ingin dipakai orang lain.
 - Tanpa database, kamu tetap bisa memakai akun tetap lewat `APP_USERNAME` + `APP_PASSWORD` (tanpa fitur daftar; data hanya di browser).
@@ -97,21 +86,13 @@ Catatan Vercel:
 | Variabel | Default | Keterangan |
 |---|---|---|
 | `GEMINI_API_KEY` | – | Wajib untuk mode AI. |
-| `GEMINI_MODEL` | `gemini-flash-latest` | Model untuk agen yang modelnya tidak dikenali. Alias `*-latest` selalu menunjuk versi terbaru. |
+| `GEMINI_MODEL` | `gemini-flash-latest` | Model Gemini cadangan (dipakai bila 9router tidak menjawab). Alias `*-latest` selalu menunjuk versi terbaru. |
 | `LLM_MAX_OUTPUT_TOKENS` | `2048` | Batas token jawaban per agen. |
-| `ANTHROPIC_API_KEY` | – | Opsional: agen yang memilih model Claude memakai Claude. |
+| `ANTHROPIC_API_KEY` | – | Opsional: dipakai bila tidak ada 9router maupun Gemini. |
 
-Free tier Gemini dibatasi per menit & per hari. Atur **batas panggilan/menit** di bar atas (default 10/mnt). Satu tugas
-"Seluruh kantor" = 1 panggilan per agen + ringkasan per lead/direktur/Boss (±30 panggilan di kantor contoh) — untuk hemat
-kuota, beri tugas per tim atau pakai model Flash-Lite.
-
-### Hubungkan Claude Code (live)
-1. Jalankan `npm start`.
-2. Salin isi `hooks/settings.example.json` ke `~/.claude/settings.json` (atau `.claude/settings.json` di proyekmu),
-   ganti `/PATH/KE/visual-office` dengan lokasi folder ini.
-3. Pakai Claude Code seperti biasa — setiap sesi muncul di divisi **Live · Claude Code**.
-
-Hook tidak pernah memblokir Claude Code (timeout 1,5 detik, selalu exit 0). Ubah alamat server dengan `VISUAL_OFFICE_URL`.
+Model AI dipilih otomatis oleh server untuk semua karyawan (tidak ada pilihan model per karyawan). Browser menjaga jeda
+± 15 panggilan/menit agar kuota cadangan Gemini aman. Satu tugas "Seluruh kantor" = 1 panggilan per agen + ringkasan per
+lead/direktur/Boss (±30 panggilan di kantor contoh).
 
 ## Kontrol
 
@@ -133,10 +114,11 @@ index.html          UI utama
 css/style.css       tampilan
 js/model.js         data organisasi, layout, ingatan agen, gudang dokumen, simpan/muat
 js/sim.js           grid jalan, pathfinding (BFS), perilaku karyawan
-js/tasks.js         alur tugas hierarkis + pemetaan event live Claude Code
+js/tasks.js         alur tugas hierarkis (briefing → kerja → laporan)
 js/icons.js         ikon SVG (pengganti emoji) untuk HTML & canvas
-js/ai.js            klien ke backend (/api/run, /api/events) + antrean rate limit
-js/render.js        renderer isometrik 2.5D: lantai, dinding, meja, furnitur, karakter gaya Habbo, balon chat
+js/ai.js            klien ke backend (/api/run) + antrean rate limit
+js/render.js        kamera & proyeksi, overlay label/balon di atas 3D, denah 2D & cadangan kanvas bila WebGL tidak ada
+js/scene3d.js       kantor 3D (three.js) dari aset GLB: material, bayangan, kaca, label
 js/ui.js            panel organisasi, inspector, daftar tugas, dialog
 js/main.js          bootstrap, game loop, kamera & editor
 lib/llm.js          lapisan LLM bersama (Gemini / Claude), dipakai lokal & Vercel
@@ -154,9 +136,8 @@ js/cloud.js         sinkron kantor & dokumen ke database per akun
 js/chat.js          panel chat dengan karyawan (Gemini)
 js/pdf.js           ekspor dokumen/laporan ke PDF (jsPDF di js/vendor, dimuat saat dibutuhkan)
 login.html          halaman login
-local/server.js     server lokal: statis + /api/run + jembatan event (SSE)
+local/server.js     server lokal: statis + /api/run + API yang sama dengan Vercel
 vercel.json         konfigurasi Vercel
-hooks/              hook Claude Code → Visual Office
 ```
 
 ## API server
@@ -164,11 +145,9 @@ hooks/              hook Claude Code → Visual Office
 | Endpoint | Fungsi |
 |---|---|
 | `GET /api/health` | Status mode AI & provider |
-| `POST /api/run` `{model, system, prompt}` | Jalankan satu agen, respons streaming SSE (`text` / `done` / `error`) |
-| `POST /api/event` | Kirim event (format hook Claude Code: `hook_event_name`, `session_id`, `tool_name`, …) |
-| `GET /api/events` | Langganan event live (SSE) |
+| `POST /api/run` `{system, prompt, long}` | Jalankan satu agen, respons streaming SSE (`text` / `done` / `error`) |
 
-`/api/event` & `/api/events` hanya ada di server lokal. Server lokal mendengarkan `127.0.0.1` secara default (ubah dengan `HOST=0.0.0.0` bila perlu — hati-hati, `/api/run` memakai API key-mu).
+Server lokal mendengarkan `127.0.0.1` secara default (ubah dengan `HOST=0.0.0.0` bila perlu — hati-hati, `/api/run` memakai API key-mu).
 
 ## Integrasi Gudang-Document
 
@@ -275,9 +254,7 @@ Video dibuat **lewat kode**, bukan diedit manual — seperti video explainer "Ch
 1. **Beri tugas video**: tulis di *Perintah Boss* (mis. `buat video penjelasan biaya listrik AI`), klik **🎬 Buat video**, atau dari Telegram `/video …` / `@Sosmed buat video …` (bisa kirim foto + caption `/video …`).
 2. **Tim mengerjakan**: divisi Sosmed/Marketing/Konten (dicari otomatis dari nama divisi/departemen) briefing, riset & menulis naskah kasar seperti tugas biasa (animasi kantor).
 3. **Naskah terstruktur**: AI menyusun storyboard JSON — tiap adegan memakai satu **template** + isinya.
-4. **Render MP4**:
-   - **Server video (Remotion di VPS)**, bila worker aktif: 5 paket visual, narasi suara + subtitle kata per kata, musik latar, dan foto/video stok — lihat bagian berikut. Bisa juga saat Visual Office tidak dibuka (permintaan dari Telegram).
-   - **Cadangan di browser** (WebCodecs + mp4-muxer): Chrome/Edge memakai H.264, browser tanpa H.264 memakai VP9. Tanpa narasi/musik/foto stok, dan paket visual hanya mengubah warna.
+4. **Render MP4** di **server video (Remotion di VPS)**: 5 paket visual, narasi suara + subtitle kata per kata, musik latar, dan foto/video stok — lihat bagian berikut. Bisa juga saat Visual Office tidak dibuka (permintaan dari Telegram). Bila worker VPS mati, naskah tetap bisa dibuat & diedit, tetapi render ditolak dengan pesan yang jelas.
 5. **Galeri** (tab 🎬 Galeri): putar, unduh, salin caption, kirim ke Telegram, atur **jadwal tayang** & platform (YouTube, TikTok, Instagram, Facebook, Threads). Saat jadwal tiba, Visual Office mengingatkan di aplikasi & Telegram (lengkap dengan file videonya); unggahan ke platform dilakukan manual.
 
 **Template** (`js/videoboard.js`, dipakai browser, server & worker): `title` (judul pembuka), `media` (foto/video stok layar penuh), `stat` (angka besar menghitung naik), `compare` (grafik batang + badge "≈ 9,7×"), `bullets`, `steps`, `quote`, `countdown`, `versus` (mitos vs fakta), `image` (foto produk), `price`, `cta`. **Gaya**: explainer, tips, iklan, berita, perbandingan, teaser. **Format**: 9:16 (TikTok/Reels/Shorts) & 16:9 (YouTube). Tanpa Mode AI, naskah memakai templat bawaan dari brief.

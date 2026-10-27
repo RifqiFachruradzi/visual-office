@@ -255,7 +255,6 @@
   /* ------------------------------------------------------------ dialog buat video */
   G.openCreate = async function (pre = {}) {
     const eng = await VO.video.engine(true);
-    if (!eng.worker && !VO.video.supported()) return VO.ui.toast('Server video (VPS) tidak aktif dan browser ini belum bisa membuat video — pakai Chrome/Edge terbaru.', 'alert');
     const s = S();
     const B = VO.videoBoard;
     const cdiv = VO.video.creativeDivision(s);
@@ -284,7 +283,7 @@
     info.className = 'muted'; info.style.fontSize = '12px';
     info.textContent = eng.worker
       ? `🟢 Server video (VPS) aktif — dirender Remotion: paket visual, ${eng.tts ? 'narasi suara & subtitle, ' : ''}musik${eng.pexels ? ', foto/video stok' : ''}.`
-      : '⚪ Server video (VPS) tidak aktif — video dirender di browser ini (tanpa narasi, musik & foto stok; paket visual hanya warna).';
+      : '⚪ Server video (VPS) sedang tidak aktif — naskah tetap bisa dibuat & diedit; render bisa dilakukan setelah worker di VPS menyala.';
     body.insertBefore(info, body.firstChild);
     const photo = $('f_photo');
     photo.addEventListener('change', () => {

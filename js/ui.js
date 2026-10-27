@@ -184,17 +184,16 @@
     const fields = [
       { key: 'name', label: 'Nama', value: a.name, required: true },
       { key: 'role', label: 'Jabatan / peran', value: a.role },
-      { key: 'model', label: 'Model AI', type: 'select', value: a.model, options: VO.MODELS.map((m) => ({ value: m.id, label: m.label })) },
       { key: 'prompt', label: 'Instruksi / kepribadian (system prompt)', type: 'textarea', value: a.prompt, placeholder: 'mis. Kamu ahli SEO yang teliti dan suka data.' },
       ...lookFields(a),
     ];
-    if (a.id !== 'boss' && !a.isDirector && !a.live) {
+    if (a.id !== 'boss' && !a.isDirector) {
       fields.push({ key: 'deptId', label: 'Departemen', type: 'select', value: a.deptId, options: s.departments.map((d) => ({ value: d.id, label: (s.divisions.find((x) => x.id === d.divisionId)?.name || '') + ' › ' + d.name })) });
       fields.push({ key: 'isLead', label: 'Jadikan ketua tim (lead)', type: 'checkbox', value: a.isLead });
     }
     const v = await ui.form(title, fields, isNew ? 'Rekrut' : 'Simpan');
     if (!v || !v.name) return null;
-    const out = { name: v.name, role: v.role || 'Staff', model: v.model, prompt: v.prompt, ...lookValues(v) };
+    const out = { name: v.name, role: v.role || 'Staff', prompt: v.prompt, ...lookValues(v) };
     if ('deptId' in v) { out.deptId = v.deptId; out.isLead = v.isLead; }
     return out;
   }
@@ -329,7 +328,7 @@
         const ag = VO.deptAgents(s, d.id);
         h += `<div class="node dept ${isSel('dept', d.id)}" data-kind="dept" data-id="${d.id}">${ni(VO.integ.forDept(s, d)?.icon || 'building')}<span class="name">${esc(d.name)}</span><span class="badge">${ag.length}</span>${acts([['addAgent', 'Rekrut agen', 'plus'], ['assign', 'Beri tugas', 'task'], ['edit', 'Edit', 'edit'], ['del', 'Hapus', 'trash']])}</div>`;
         for (const a of ag)
-          h += `<div class="node agent ${isSel('agent', a.id)}" data-kind="agent" data-id="${a.id}">${a.live ? ni('live', 'live') : a.isLead ? ni('star', 'lead') : ni('bot')}<span class="name">${esc(a.name)} <span class="sub">· ${esc(a.role)}</span></span>${busy(a.id)}${acts([['assign', 'Beri tugas', 'task'], ['edit', 'Edit', 'edit'], ['del', 'Hapus', 'trash']])}</div>`;
+          h += `<div class="node agent ${isSel('agent', a.id)}" data-kind="agent" data-id="${a.id}">${a.isLead ? ni('star', 'lead') : ni('bot')}<span class="name">${esc(a.name)} <span class="sub">· ${esc(a.role)}</span></span>${busy(a.id)}${acts([['assign', 'Beri tugas', 'task'], ['edit', 'Edit', 'edit'], ['del', 'Hapus', 'trash']])}</div>`;
         // tombol yang selalu terlihat (tidak hanya saat hover)
         h += `<div class="node add agent-add" data-kind="dept" data-id="${d.id}"><button class="link" data-act="addAgent">${VO.icon('plus')} Rekrut karyawan</button></div>`;
       }
@@ -428,10 +427,9 @@
     const boss = a.id === 'boss';
     const dept = s.departments.find((d) => d.id === a.deptId);
     const div = s.divisions.find((d) => d.id === a.divisionId);
-    const model = VO.MODELS.find((m) => m.id === a.model)?.label || a.model;
     const st = rt?.status || 'idle';
-    const statusTxt = rt?.liveTool && rt.liveTool !== 'thinking' ? 'Pakai tool: ' + rt.liveTool : STATUS_TXT[st] || st;
-    const rank = boss ? 'Boss · Kamu' : a.isDirector ? 'Direktur' : a.isLead ? 'Ketua tim' : a.live ? 'Agen live' : 'AI agent';
+    const statusTxt = STATUS_TXT[st] || st;
+    const rank = boss ? 'Boss · Kamu' : a.isDirector ? 'Direktur' : a.isLead ? 'Ketua tim' : 'AI agent';
     let stats, focus = '', quote = '';
     if (boss) {
       const all = s.tasks.length, done = s.tasks.filter((t) => t.status === 'done').length;
@@ -457,7 +455,7 @@
         <div class="ac-id"><div class="insp-name">${esc(a.name)}</div><div class="insp-role">${boss ? 'Pemimpin kantor · Kamu' : `${esc(a.role)} · ${rank}`}</div></div>
         <button class="icon-btn ac-x" data-i="close" title="Tutup (Esc)" aria-label="Tutup">${VO.icon('x')}</button>
       </div>
-      <div class="ac-tags"><span class="state ${STATUS_TONE[st] || 'muted'}"><i></i>${esc(statusTxt)}</span>${!boss && model ? `<span class="tag">${esc(model)}</span>` : ''}${dept ? `<span class="tag">${esc(dept.name)}</span>` : div ? `<span class="tag">${esc(div.name)}</span>` : ''}</div>
+      <div class="ac-tags"><span class="state ${STATUS_TONE[st] || 'muted'}"><i></i>${esc(statusTxt)}</span>${dept ? `<span class="tag">${esc(dept.name)}</span>` : div ? `<span class="tag">${esc(div.name)}</span>` : ''}</div>
       <div class="ac-stats">${stats}</div>
       ${focus}${quote}
       <div class="ac-actions">
@@ -468,14 +466,13 @@
       </div>
       ${boss ? '' : `<details class="ac-more"><summary>Detail & pengaturan</summary>
         <div class="kv">
-          <span>Model</span><span>${esc(model)}</span>
           ${div ? `<span>Divisi</span><span>${esc(div.name)}</span>` : ''}
           ${dept ? `<span>Departemen</span><span>${esc(dept.name)}</span>` : ''}
           ${a.prompt ? `<span>Instruksi</span><span>${esc(a.prompt)}</span>` : ''}
         </div>
         ${a.memory && a.memory.length ? `<div class="memory"><b>${VO.icon('brain')} Ingatan (${a.memory.length})</b>${a.memory.map((m) => `<div class="m">${esc(m.text)}</div>`).join('')}</div>` : ''}
         <div class="btns">
-          ${a.deptId && !a.isLead && !a.live ? `<button class="small" data-i="lead">${VO.icon('star')} Jadikan lead</button>` : ''}
+          ${a.deptId && !a.isLead ? `<button class="small" data-i="lead">${VO.icon('star')} Jadikan lead</button>` : ''}
           ${a.memory && a.memory.length ? `<button class="small" data-i="forget">${VO.icon('eraser')} Lupakan</button>` : ''}
           <button class="small danger" data-i="del">${VO.icon('trash')} Hapus</button>
         </div></details>`}`;
